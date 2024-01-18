@@ -1,0 +1,11 @@
+logs/
+weights/
+runs/
+__pycache__/
+_out/
+weights_past/
+videos/
+DQN_Control/__pycache__/
+
+
+
