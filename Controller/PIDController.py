@@ -4,7 +4,7 @@
 2D Controller Class to be used for the CARLA waypoint follower demo.
 """
 
-import cutils
+import Utils.cutils as cutils
 import numpy as np
 
 class Controller(object):

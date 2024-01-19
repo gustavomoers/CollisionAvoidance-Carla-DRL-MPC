@@ -94,14 +94,14 @@ def process_img2(self, image,  dim_x=128, dim_y=128):
     #print(i.shape)
     i2 = i.reshape((self.im_height, self.im_width, 4))
     i3 = i2[:, :, :3]
-    cv2.imwrite(f'./_out/test/ground{self.global_t}.png', i3)
+    # cv2.imwrite(f'F:/CollisionAvoidance-Carla-DRL-MPC/_out/ground/{self.global_t}.png', i3)
 
     img_gray = cv2.cvtColor(i3, cv2.COLOR_BGR2GRAY)
     # cv2.imwrite(f'./_out/test/gray{self.global_t}.png', img_gray)
 
     dim = (dim_x, dim_y)  # set same dim for now
     resized_img = cv2.resize(img_gray, dim, interpolation=cv2.INTER_AREA)
-    cv2.imwrite(f'./_out/test/resized{self.global_t}.png', resized_img)
+    # cv2.imwrite(f'F:/CollisionAvoidance-Carla-DRL-MPC/_out/resized/{self.global_t}.png', resized_img)
     
     scaledImg = resized_img/255.
 
@@ -156,3 +156,50 @@ def create_folders(folder_names):
         if not os.path.exists(directory):
                 # If it doesn't exist, create it
                 os.makedirs(directory)
+
+
+
+def wrap_angle(angle_in_degree):
+    angle_in_rad = angle_in_degree / 180.0 * np.pi
+    while (angle_in_rad > np.pi):
+        angle_in_rad -= 2 * np.pi
+    while (angle_in_rad <= -np.pi):
+        angle_in_rad += 2 * np.pi
+    return angle_in_rad
+
+
+
+def get_vehicle_wheelbases(wheels, center_of_mass):
+    front_left_wheel = wheels[0]
+    front_right_wheel = wheels[1]
+    back_left_wheel = wheels[2]
+    back_right_wheel = wheels[3]
+    front_x = (front_left_wheel.position.x + front_right_wheel.position.x) / 2.0
+    front_y = (front_left_wheel.position.y + front_right_wheel.position.y) / 2.0
+    front_z = (front_left_wheel.position.z + front_right_wheel.position.z) / 2.0
+    back_x = (back_left_wheel.position.x + back_right_wheel.position.x) / 2.0
+    back_y = (back_left_wheel.position.y + back_right_wheel.position.y) / 2.0
+    back_z = (back_left_wheel.position.z + back_right_wheel.position.z) / 2.0
+    l = np.sqrt( (front_x - back_x)**2 + (front_y - back_y)**2 + (front_z - back_z)**2  ) / 100.0
+    # print(f"center of mass : {center_of_mass.x}, {center_of_mass.y}, {center_of_mass.z} wheelbase {l}")
+    # return center_of_mass.x , l - center_of_mass.x, l
+    return l - center_of_mass.x, center_of_mass.x, l
+
+
+
+def draw_waypoints(world, waypoints, z=0.5, color=(255,0,0)): # from carla/agents/tools/misc.py
+    #  """
+    # Draw a list of waypoints at a certain height given in z.
+
+    # :param world: carla.world object
+    # :param waypoints: list or iterable container with the waypoints to draw
+    # :param z: height in meters
+    # :return:
+    # """
+    color = carla.Color(r=color[0],g=color[1],b=color[2],a=255)
+    for w in waypoints:
+        t = w.transform
+        begin = t.location + carla.Location(z)
+        # angle = math.radians(t.rotation.yaw)
+        # end = begin + carla.Location(x=math.cos(angle), y=math.sin(angle))
+        world.debug.draw_point(begin, size=0.05, color=color, life_time=0.1)
