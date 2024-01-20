@@ -25,6 +25,7 @@ class Controller(object):
         self._set_brake = 0
         self._set_steer = 0
         self._waypoints = waypoints
+        self.stat = None
         self._conv_rad_to_steer = 180.0 / 70.0 / np.pi
         self.controller = MPC(  x = self._current_x, y = self._current_y, yaw = self._current_yaw, v = self._current_speed, delta = 0,
                                 lf = lf, lr = lr ,L = wheelbase, Q = MPCParams.Q, R = MPCParams.R, Qf = MPCParams.Qf, Rd = MPCParams.Rd, len_horizon = planning_horizon,
@@ -131,7 +132,7 @@ class Controller(object):
 
         # Skip the first frame to store previous values properly
         if self._start_control_loop:
-            acceleration, steer_output = \
+            acceleration, steer_output, self.stat = \
                 self.controller.get_inputs(x, y, yaw, v, np.array(self._waypoints).T)
 
             ######################################################

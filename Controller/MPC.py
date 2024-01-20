@@ -181,7 +181,8 @@ class MPC:
         qp = cvxpy.Problem(cvxpy.Minimize(cost), constraints)
         qp.solve(solver=cvxpy.ECOS, verbose=False)
 
-        print(qp.status)
+        # print(qp.status)
+        self.qp_status = str(qp.status)
 
         if qp.status == cvxpy.OPTIMAL or qp.status == cvxpy.OPTIMAL_INACCURATE:
             x = np.array(z.value[0, :]).flatten()
@@ -194,7 +195,7 @@ class MPC:
             # x, y, v, yaw, a, delta = None, None, None, None, None, None
             a, delta = None, None
 
-        return a, delta
+        return a, delta, self.qp_status
 
     def get_ref_traj(self, cx, cy, cyaw, ck, vel, prev_idx, dt=0.01):
         x_ref = np.zeros((4, self.len_horizon+1))
@@ -237,19 +238,19 @@ class MPC:
         self.update_position(x, y)
         self.update_yaw(yaw)
         self.update_speed(v)
-
+        stat = None
         x0 = np.array([[x], [y], [v], [yaw]])
 
-        accelerations, deltas = self.linear_mpc(waypoints, x0, self.prev_deltas, dt=self.time_step)
+        accelerations, deltas, stat = self.linear_mpc(waypoints, x0, self.prev_deltas, dt=self.time_step)
 
-        print (accelerations)
+        # print (accelerations)
         if accelerations is None:
             self.prev_accelerations = self.prev_accelerations
             self.prev_deltas = self.prev_deltas
         else:
             self.prev_accelerations = accelerations
             self.prev_deltas = deltas
-        print(self.prev_accelerations)
-        print(self.prev_deltas)
+        # print(self.prev_accelerations)
+        # print(self.prev_deltas)
 
-        return self.prev_accelerations[0], self.prev_deltas[0]
+        return self.prev_accelerations[0], self.prev_deltas[0], stat

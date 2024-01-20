@@ -14,7 +14,8 @@ from World import World
 import argparse
 import logging
 from stable_baselines3 import PPO #PPO
-import os 
+import os
+from callbacks import TensorboardCallback
 
 models_dir = f"models/{int(time.time())}/"
 logdir = f"logs/{int(time.time())}/"
@@ -38,16 +39,16 @@ def game_loop(args):
         carla_world = client.get_world()
         world = World(client, carla_world, hud, args)
         world.reset()
-        model = PPO('CnnPolicy', world, verbose=1,learning_rate=0.001, tensorboard_log=logdir)
-
+        model = PPO('CnnPolicy', world, learning_rate=0.001, tensorboard_log=logdir)
+        
        
-        TIMESTEPS = 500_000 # how long is each training iteration - individual steps
+        TIMESTEPS = 1000 # how long is each training iteration - individual steps
         iters = 0
-        while iters<1000:  # how many training iterations you want
+        while iters<5:  # how many training iterations you want
             iters += 1
 
             print('Iteration ', iters,' is to commence...')
-            model.learn(total_timesteps=TIMESTEPS, reset_num_timesteps=False, tb_log_name=f"PPO" )
+            model.learn(total_timesteps=TIMESTEPS, reset_num_timesteps=False, tb_log_name=f"PPO", callback = TensorboardCallback())
             print('Iteration ', iters,' has been trained')
             model.save(f"{models_dir}/{TIMESTEPS*iters}")
 
