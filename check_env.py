@@ -131,12 +131,14 @@ args.width, args.height = [int(x) for x in args.res.split('x')]
 try:
     client = carla.Client('127.0.0.1', 2000)
     client.set_timeout(100.0)
-    # carla_world = client.load_world(args.map)
+    carla_world = client.load_world(args.map)
     carla_world = client.get_world()
     hud = HUD()
     world = World(client, carla_world, hud, args)
-    controller = VehicleControl(world)
-    check_env(world)
+    world.reset()
+
+    world.step()
+    
 finally:
 
     if world is not None:

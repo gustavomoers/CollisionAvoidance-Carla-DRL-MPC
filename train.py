@@ -34,23 +34,35 @@ def game_loop(args):
         client = carla.Client(args.host, args.port)
         client.set_timeout(100.0)
         hud = HUD()
-        carla_world = client.load_world(args.map)
+        # carla_world = client.load_world(args.map)
         carla_world = client.get_world()
         world = World(client, carla_world, hud, args)
-        controller = VehicleControl(world)
-
         world.reset()
-        model = PPO('MlpPolicy', world, verbose=1,learning_rate=0.001, tensorboard_log=logdir)
+        model = PPO('CnnPolicy', world, verbose=1,learning_rate=0.001, tensorboard_log=logdir)
 
        
         TIMESTEPS = 500_000 # how long is each training iteration - individual steps
         iters = 0
-        while iters<4:  # how many training iterations you want
+        while iters<1000:  # how many training iterations you want
             iters += 1
+
             print('Iteration ', iters,' is to commence...')
             model.learn(total_timesteps=TIMESTEPS, reset_num_timesteps=False, tb_log_name=f"PPO" )
             print('Iteration ', iters,' has been trained')
             model.save(f"{models_dir}/{TIMESTEPS*iters}")
+
+
+            # action = world.action_space.sample()
+            # print(action)
+
+            # img, rew, done, info = world.step(action)
+            # print(f"reward: {rew}")
+            # print(f"done: {done}")
+
+            # if done:
+            #      world.reset()
+            #      break
+
                 
     finally:
 

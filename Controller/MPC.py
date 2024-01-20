@@ -49,8 +49,8 @@ class MPC:
 
         self.prev_idx = 0
         self.send_prev = 0
-        self.prev_accelerations = np.array([0.0] * self.len_horizon)
-        self.prev_deltas = np.array([0.0] * self.len_horizon)
+        self.prev_accelerations = np.array([0.0] * len_horizon)
+        self.prev_deltas = np.array([0.0] * len_horizon)
         self.prev_index = 0
     
     def update_state(self, x, y, v, yaw):
@@ -181,6 +181,8 @@ class MPC:
         qp = cvxpy.Problem(cvxpy.Minimize(cost), constraints)
         qp.solve(solver=cvxpy.ECOS, verbose=False)
 
+        print(qp.status)
+
         if qp.status == cvxpy.OPTIMAL or qp.status == cvxpy.OPTIMAL_INACCURATE:
             x = np.array(z.value[0, :]).flatten()
             y = np.array(z.value[1, :]).flatten()
@@ -240,11 +242,14 @@ class MPC:
 
         accelerations, deltas = self.linear_mpc(waypoints, x0, self.prev_deltas, dt=self.time_step)
 
+        print (accelerations)
         if accelerations is None:
-            self.prev_accelerations = self.prev_accelerations[1:]
-            self.prev_deltas = self.prev_deltas[1:]
+            self.prev_accelerations = self.prev_accelerations
+            self.prev_deltas = self.prev_deltas
         else:
             self.prev_accelerations = accelerations
             self.prev_deltas = deltas
+        print(self.prev_accelerations)
+        print(self.prev_deltas)
 
         return self.prev_accelerations[0], self.prev_deltas[0]
