@@ -10,6 +10,7 @@ import math
 import gym
 import gymnasium as gym
 from gymnasium import spaces
+import cv2
 
 
 class World(gym.Env):
@@ -33,27 +34,41 @@ class World(gym.Env):
         self.waypoint_resolution = args.waypoint_resolution
         self.waypoint_lookahead_distance = args.waypoint_lookahead_distance
         self.desired_speed = args.desired_speed
-        print(self.desired_speed)
+        # print(self.desired_speed)
         self.planning_horizon = args.planning_horizon
         self.time_step = args.time_step
         self.control_mode = args.control_mode
         self.controller = None
         self.control_count = 0.0
         self.random_spawn = 0
-        self.restart()
+        # self.restart()
         self.world.on_tick(hud.on_world_tick)
         self.recording_enabled = False
         self.im_width = 640
         self.im_height = 480
         self.episode_start = 0
         self.visuals = False
-        
-
-
+        self.episode_reward = 0
+        self.cos_list = []
+        self.dist_list = []
+        self.SHOW_CAM = True
+        self.player = None
+        self.collision_sensor = None
+        self.camera_rgb = None
+        self.camera_rgb_vis = None
+        self.lane_invasion = None
+        self._autopilot_enabled = False
+        self._control = carla.VehicleControl()
+        self._steer_cache = 0.0
+        self.y_values_RL =np.array([0,5])
+        self.x_values_RL = np.array([-10,10])
+        self.yaw_values_RL = np.array([-3.14, 3.14])
+    
 
 
         ## RL STABLE BASELINES
-        # self.action_space = spaces.Box(low=-1, high=1,shape=(2,),dtype=np.uint8)
+        self.action_space = spaces.Box(low=-1, high=1,shape=(9,),dtype="float32")
+        self.observation_space = spaces.Box(low=-0, high=255, shape=(128, 128, 1), dtype=np.uint8)
 
 
 
@@ -62,127 +77,122 @@ class World(gym.Env):
         
         self.global_t = 0 # global timestep
         
-    def restart(self):
-        # Keep same camera config if the camera manager exists.
-        cam_index = self.camera_manager.index if self.camera_manager is not None else 0
-        cam_pos_index = self.camera_manager.transform_index if self.camera_manager is not None else 0
-        # Get a random blueprint.
-        blueprints = self.world.get_blueprint_library().filter(self._actor_filter)
-        blueprint = None
-        for blueprint_candidates in blueprints:
-            # print(blueprint_candidates.id)
-            if blueprint_candidates.id == self.args.vehicle_id:
-                blueprint = blueprint_candidates
-                break
-        if blueprint is None:
-            blueprint = random.choice(self.world.get_blueprint_library().filter(self._actor_filter))
+    def reset(self, seed=None):
 
-        blueprint.set_attribute('role_name', self.actor_role_name)
-        if blueprint.has_attribute('color'):
-            color = random.choice(blueprint.get_attribute('color').recommended_values)
-            blueprint.set_attribute('color', color)
-        if blueprint.has_attribute('driver_id'):
-            driver_id = random.choice(blueprint.get_attribute('driver_id').recommended_values)
-            blueprint.set_attribute('driver_id', driver_id)
-        if blueprint.has_attribute('is_invincible'):
-            blueprint.set_attribute('is_invincible', 'true')
-        # Spawn the player.
-        if self.player is not None:
-            spawn_point = self.player.get_transform()
-            spawn_point.location.z += 2.0
-            spawn_point.rotation.roll = 0.0
-            spawn_point.rotation.pitch = 0.0
-            self.destroy()
-            self.player = self.world.try_spawn_actor(blueprint, spawn_point)
+        self.destroy()
+        # # Keep same camera config if the camera manager exists.
+        # cam_index = self.camera_manager.index if self.camera_manager is not None else 0
+        # # cam_pos_index = self.camera_manager.transform_index if self.camera_manager is not None else 0
+        # # # Get a random blueprint.
+        # blueprints = self.world.get_blueprint_library().filter(self._actor_filter)
+        # blueprint = None
+        # for blueprint_candidates in blueprints:
+        #     # print(blueprint_candidates.id)
+        #     if blueprint_candidates.id == self.args.vehicle_id:
+        #         blueprint = blueprint_candidates
+        #         break
+        # if blueprint is None:
+        #     blueprint = random.choice(self.world.get_blueprint_library().filter(self._actor_filter))
 
-        while self.player is None:
-            if self.random_spawn == 1:
-                print(f"Random spawn!")
-                spawn_points = self.world.get_map().get_spawn_points()
-                spawn_point = random.choice(spawn_points) if spawn_points else carla.Transform()
-                self.player = self.world.try_spawn_actor(blueprint, spawn_point)
-            else:
-                spawn_location = carla.Location()
-                spawn_location.x = float(self.args.spawn_x)
-                spawn_location.y = float(self.args.spawn_y)
-                spawn_waypoint = self.map.get_waypoint(spawn_location)
-                spawn_transform = spawn_waypoint.transform
-                spawn_transform.location.z = 1.0
-                self.player = self.world.try_spawn_actor(blueprint, spawn_transform)
+        # blueprint.set_attribute('role_name', self.actor_role_name)
+        # if blueprint.has_attribute('color'):
+        #     color = random.choice(blueprint.get_attribute('color').recommended_values)
+        #     blueprint.set_attribute('color', color)
+        # if blueprint.has_attribute('driver_id'):
+        #     driver_id = random.choice(blueprint.get_attribute('driver_id').recommended_values)
+        #     blueprint.set_attribute('driver_id', driver_id)
+        # if blueprint.has_attribute('is_invincible'):
+        #     blueprint.set_attribute('is_invincible', 'true')
+        # # Spawn the player.
             
-            print('vehicle spawned')
-
-            spectator = self.world.get_spectator()
-            transform = self.player.get_transform()
-            spectator.set_transform(carla.Transform(transform.location + carla.Location(y=-10,z=28.5), carla.Rotation(pitch=-90)))
-
-            # spawn_points = self.world.get_map().get_spawn_points()
-            # spawn_point = random.choice(spawn_points) if spawn_points else carla.Transform()
-            # self.player = self.world.try_spawn_actor(blueprint, spawn_point)
-
-            self.blueprint_library = self.world.get_blueprint_library()
-            self.vehicle_blueprint = self.blueprint_library.filter('*vehicle*')
-            self.walker_blueprint = self.blueprint_library.filter('*walker.*')
-
-            ## CAMERA RGB
-
-            self.rgb_cam = self.blueprint_library.find('sensor.camera.rgb')
-            self.rgb_cam.set_attribute("image_size_x", f"{640}")
-            self.rgb_cam.set_attribute("image_size_y", f"{480}")
-            self.rgb_cam.set_attribute("fov", f"110")
-            self.camera_rgb = self.world.spawn_actor(
-                self.rgb_cam,
-                carla.Transform(carla.Location(x=2, z=1), carla.Rotation(0,0,0)),
-                attach_to=self.player)
-
-            ## CAMERA FOR VIZUALIZATION
-
-            self.vis_cam = self.blueprint_library.find('sensor.camera.rgb')
-            self.vis_cam.set_attribute("image_size_x", f"{640}")
-            self.vis_cam.set_attribute("image_size_y", f"{480}")
-            self.vis_cam.set_attribute("fov", f"110")
-            self.camera_rgb_vis = self.world.spawn_actor(
-                self.vis_cam,
-                carla.Transform(carla.Location(x=-5.5, z=2.8), carla.Rotation(pitch=-15)),
-                attach_to=self.player)
-
-            ## LANE VIZUALIZATION
-
-            self.lane_invasion = self.world.spawn_actor(
-                self.blueprint_library.find('sensor.other.lane_invasion'), 
-                carla.Transform(), 
-                attach_to=self.player)
-
-            ## COLLISION SENSOR
-
-            self.collision_sensor = self.world.spawn_actor(
-                self.blueprint_library.find('sensor.other.collision'),
-                carla.Transform(),
-                attach_to=self.player)
+        self.blueprint_library = self.world.get_blueprint_library()
+        self.vehicle_blueprint = self.blueprint_library.filter('*vehicle*')
+        self.walker_blueprint = self.blueprint_library.filter('*walker.*')
+  
+        spawn_location = carla.Location()
+        spawn_location.x = float(self.args.spawn_x)
+        spawn_location.y = float(self.args.spawn_y)
+        spawn_waypoint = self.map.get_waypoint(spawn_location)
+        spawn_transform = spawn_waypoint.transform
+        spawn_transform.location.z = 1.0
+        self.player = self.world.try_spawn_actor(self.vehicle_blueprint.filter('model3')[0], spawn_transform)
             
-            ## CONTROLLER
+        print('vehicle spawned')
 
-            self.control_count = 0
-            if self.control_mode == "PID":
-                self.controller = PIDController.Controller()
-                print("Control: PID")
-            elif self.control_mode == "MPC":
-                physic_control = self.player.get_physics_control()
-                print("Control: MPC")
-                lf, lr, l = get_vehicle_wheelbases(physic_control.wheels, physic_control.center_of_mass )
-                self.controller = MPCController.Controller(lf = lf, lr = lr, wheelbase=l, planning_horizon = self.planning_horizon, time_step = self.time_step)
-            velocity_vec = self.player.get_velocity()
-            current_transform = self.player.get_transform()
-            current_location = current_transform.location
-            current_roration = current_transform.rotation
-            current_x = current_location.x
-            current_y = current_location.y
-            current_yaw = wrap_angle(current_roration.yaw)
-            current_speed = math.sqrt(velocity_vec.x**2 + velocity_vec.y**2 + velocity_vec.z**2)
-            frame, current_timestamp = self.hud.get_simulation_information()
-            print(frame)
-            print(current_timestamp)
-            self.controller.update_values(current_x, current_y, current_yaw, current_speed, current_timestamp, frame)
+        spectator = self.world.get_spectator()
+        transform = self.player.get_transform()
+        spectator.set_transform(carla.Transform(transform.location + carla.Location(y=-10,z=28.5), carla.Rotation(pitch=-90)))
+
+        # spawn_points = self.world.get_map().get_spawn_points()
+        # spawn_point = random.choice(spawn_points) if spawn_points else carla.Transform()
+        # self.player = self.world.try_spawn_actor(blueprint, spawn_point)
+
+
+        ## CAMERA RGB
+
+        self.rgb_cam = self.blueprint_library.find('sensor.camera.rgb')
+        self.rgb_cam.set_attribute("image_size_x", f"{640}")
+        self.rgb_cam.set_attribute("image_size_y", f"{480}")
+        self.rgb_cam.set_attribute("fov", f"110")
+        self.camera_rgb = self.world.spawn_actor(
+            self.rgb_cam,
+            carla.Transform(carla.Location(x=2, z=1), carla.Rotation(0,0,0)),
+            attach_to=self.player)
+        
+
+        ## CAMERA FOR VIZUALIZATION
+
+        self.vis_cam = self.blueprint_library.find('sensor.camera.rgb')
+        self.vis_cam.set_attribute("image_size_x", f"{640}")
+        self.vis_cam.set_attribute("image_size_y", f"{480}")
+        self.vis_cam.set_attribute("fov", f"110")
+        self.camera_rgb_vis = self.world.spawn_actor(
+            self.vis_cam,
+            carla.Transform(carla.Location(x=-5.5, z=2.8), carla.Rotation(pitch=-15)),
+            attach_to=self.player)
+
+        ## LANE VIZUALIZATION
+
+        self.lane_invasion = self.world.spawn_actor(
+            self.blueprint_library.find('sensor.other.lane_invasion'), 
+            carla.Transform(), 
+            attach_to=self.player)
+
+        ## COLLISION SENSOR
+
+        self.collision_sensor = self.world.spawn_actor(
+            self.blueprint_library.find('sensor.other.collision'),
+            carla.Transform(),
+            attach_to=self.player)
+        
+        ## CONTROLLER
+
+        self.control_count = 0
+        if self.control_mode == "PID":
+            self.controller = PIDController.Controller()
+            print("Control: PID")
+        elif self.control_mode == "MPC":
+            physic_control = self.player.get_physics_control()
+            print("Control: MPC")
+            lf, lr, l = get_vehicle_wheelbases(physic_control.wheels, physic_control.center_of_mass )
+            self.controller = MPCController.Controller(lf = lf, lr = lr, wheelbase=l, planning_horizon = self.planning_horizon, time_step = self.time_step)
+        velocity_vec = self.player.get_velocity()
+        current_transform = self.player.get_transform()
+        current_location = current_transform.location
+        current_roration = current_transform.rotation
+        current_x = current_location.x
+        current_y = current_location.y
+        current_yaw = wrap_angle(current_roration.yaw)
+        current_speed = math.sqrt(velocity_vec.x**2 + velocity_vec.y**2 + velocity_vec.z**2)
+        frame, current_timestamp = self.hud.get_simulation_information()
+        print(frame)
+        print(current_timestamp)
+        self.controller.update_values(current_x, current_y, current_yaw, current_speed, current_timestamp, frame)
+        self.episode_start = time.time()
+
+
+
+        return self.step(None)[0], {}
 
     def tick(self, clock):
         self.hud.tick(self, clock)
@@ -198,8 +208,7 @@ class World(gym.Env):
             self.collision_sensor,
             self.camera_rgb,
             self.camera_rgb_vis,
-            self.lane_invasion
-                    ]
+            self.lane_invasion]
         for actor in actors:
             if actor is not None:
                 actor.destroy()
@@ -215,7 +224,7 @@ class World(gym.Env):
 
 
 
-    def generate_episode(self, controller):
+    def step(self, action):
 
 
         with CarlaSyncMode(self.world, self.camera_rgb, self.camera_rgb_vis, self.lane_invasion, self.collision_sensor, fps=10) as sync_mode:
@@ -223,38 +232,206 @@ class World(gym.Env):
 
             counter = 0
             snapshot, image_rgb, image_rgb_vis, lane, collision = sync_mode.tick(timeout=10.0)
-            self.episode_start = time.time()
-            # vehicle_location = self.player.get_location()
-            # print(vehicle_location)
-
-
-            image = process_img2(self,image_rgb)
-            next_state = image 
 
             
+            vehicle_location = self.player.get_location()       
+            waypoint = self.world.get_map().get_waypoint(vehicle_location, project_to_road=True, 
+                        lane_type=carla.LaneType.Driving)
+                    
+            # destroy if there is no data
+            if snapshot is None or image_rgb is None:
+                print("No data, skipping episode")
+                # self.reset()
+                return None
 
-            # controller = VehicleControl(self.world)
+
+            self.image = process_img2(self,image_rgb)
+            next_state = self.image 
+
+
+            done = False
             clock = pygame.time.Clock()
-            while True:
+
+            if action is not None:
+                while not done:
+                    
+                    # if self.visuals:
+                    #     if should_quit():
+                    #         return
+                    #     self.clock.tick_busy_loop(30)
+
+                    vehicle_loc_inside = self.player.get_location()
+
+                    # Advance the simulation and wait for the data.
+                    state = next_state
+                    counter += 1
+                    self.global_t += 1
+
+                    # clock.tick(5)
+                    clock.tick_busy_loop(self.args.FPS)
+                    # pygame.time.dalay(500)
+                    if self.parse_events(action):
+                        return
+                    
+                    snapshot, image_rgb, image_rgb_vis, lane, collision = sync_mode.tick(timeout=10.0)
+
+                    cos_yaw_diff, dist, collision, lane, finish = self.get_reward_comp(self.player, waypoint, collision, lane)
+                    reward = self.reward_value(cos_yaw_diff, dist, collision, lane, finish)
+
+                    self.cos_list.append(cos_yaw_diff)
+                    self.dist_list.append(dist)
+                    self.episode_reward += reward
+                    
                 
-                # if self.visuals:
-                #     if should_quit():
-                #         return
-                #     self.clock.tick_busy_loop(30)
-                counter += 1
-                self.global_t += 1
+                    if snapshot is None or image_rgb is None:
+                        print("Process ended here")
+                        break
 
-                # clock.tick(5)
-                clock.tick_busy_loop(self.args.FPS)
-                # pygame.time.dalay(500)
-                if controller.parse_events(self.client, self.world, clock):
-                    return
-                snapshot, image_rgb, image_rgb_vis, lane, collision = sync_mode.tick(timeout=10.0)
-                image = process_img2(self, image_rgb)
-                # world.tick(clock)
-                # time.sleep (30)
 
+                    self.image = process_img2(self, image_rgb)
+                    
+                    done = 1 if collision or lane else 0        # or finish
+
+            # self.destroy()
+        return self.image, self.episode_reward, done, {}
+
+
+    def get_reward_comp(vehicle, waypoint, collision, lane):
+        vehicle_location = vehicle.get_location()
+        x_wp = waypoint.transform.location.x
+        y_wp = waypoint.transform.location.y
+
+        x_vh = vehicle_location.x
+        y_vh = vehicle_location.y
+
+        wp_array = np.array([x_wp])
+        vh_array = np.array([x_vh])
+
+        dist = abs(np.linalg.norm(wp_array - vh_array))
+
+        vh_yaw = correct_yaw(vehicle.get_transform().rotation.yaw)
+        wp_yaw = correct_yaw(waypoint.transform.rotation.yaw)
+        cos_yaw_diff = np.cos((vh_yaw - wp_yaw)*np.pi/180.)
+
+        collision = 0 if collision is None else 1
+
+        lane = 0 if lane is None else 1
+
+        finish = 1 if y_vh > -40 else 0
+        
+        return cos_yaw_diff, dist, collision, lane, finish
     
+
+    def reward_value(self, cos_yaw_diff, dist, collision, lane, finish, lambda_1=5, lambda_2=10, lambda_3=100, lambda_4=0, lambda_5=100):
+    
+        reward = (lambda_1 * cos_yaw_diff) - (lambda_2 * dist) - (lambda_3 * collision) - (lambda_4 * lane) + (lambda_5 * finish)
+        
+        return reward
+    
+
+    def parse_events(self, action):
+
+        if not self._autopilot_enabled:
+            # Control loop
+            # get waypoints
+            current_location = self.world.player.get_location()
+            velocity_vec = self.world.player.get_velocity()
+            current_transform = self.world.player.get_transform()
+            current_location = current_transform.location
+            current_rotation = current_transform.rotation
+            current_x = current_location.x
+            current_y = current_location.y
+            current_yaw = wrap_angle(current_rotation.yaw)
+            current_speed = math.sqrt(velocity_vec.x**2 + velocity_vec.y**2 + velocity_vec.z**2)
+            print(f"Control input : speed : {current_speed}, current position : {current_x}, {current_y}, yaw : {current_yaw}")
+            frame, current_timestamp =self.world.hud.get_simulation_information()
+            ready_to_go = self.world.controller.update_values(current_x, current_y, current_yaw, current_speed, current_timestamp, frame)
+            
+            if ready_to_go:
+                if self.world.control_mode == "PID":
+                    print('here')
+                    current_location = self.world.player.get_location()
+                    current_waypoint = self.world.map.get_waypoint(current_location).next(self.world.waypoint_resolution)[0]
+                    print(current_waypoint.transform.location.x-current_x)
+                    print(current_waypoint.transform.location.y-current_y)
+                    # wp_draw = []
+                    waypoints = []
+                    for i in range(int(self.world.waypoint_lookahead_distance / self.world.waypoint_resolution)):
+                        waypoints.append([current_waypoint.transform.location.x, current_waypoint.transform.location.y, self.world.desired_speed])
+                        # wp_draw.append(current_waypoint)
+                        current_waypoint = current_waypoint.next(self.world.waypoint_resolution)[0]
+                        
+                    # print(f"number of waypoints : {len(next_waypoint_list)}")
+                    # current_location = world.player.get_location()
+                        
+
+                elif self.world.control_mode == "MPC":
+
+                    x0 = (max(self.self.x_values_RL)-min(self.x_values_RL))*((action[0]+1)/2)+min(self.x_values_RL)
+                    y0 = (max(self.y_values_RL)-min(self.y_values_RL))*((action[1]+1)/2)+min(self.y_values_RL)
+                    yaw0 = (max(self.yaw_values_RL)-min(self.yaw_values_RL))*((action[2]+1)/2)+min(self.yaw_values_RL)
+
+                    x1 = (max(self.x_values_RL)-min(self.x_values_RL))*((action[3]+1)/2)+min(self.x_values_RL)
+                    y1 = (max(self.y_values_RL)-min(self.y_values_RL))*((action[4]+1)/2)+min(self.y_values_RL)+y0
+                    yaw1 = (max(self.yaw_values_RL)-min(self.yaw_values_RL))*((action[5]+1)/2)+min(self.yaw_values_RL)
+
+                    x2 = (max(self.x_values_RL)-min(self.x_values_RL))*((action[6]+1)/2)+min(self.x_values_RL)
+                    y2 = (max(self.y_values_RL)-min(self.y_values_RL))*((action[7]+1)/2)+min(self.y_values_RL)+y1
+                    yaw2 = (max(self.yaw_values_RL)-min(self.yaw_values_RL))*((action[8]+1)/2)+min(self.yaw_values_RL)
+
+                    road_desired_speed = self.world.desired_speed
+                    waypoints_RL = [[x0, y0, road_desired_speed, yaw0], [x1, y1, road_desired_speed, yaw1], [x2, y2, road_desired_speed, yaw2]]
+
+                    dist = self.world.time_step * current_speed + 0.1
+                    prev_waypoint = self.world.map.get_waypoint(current_location)
+                    current_waypoint = prev_waypoint.next(dist)[0]
+                    # print(current_waypoint)
+                    waypoints = []
+                    
+                    # road_desired_speed = world.player.get_speed_limit()/3.6*0.95
+                    for i in range(self.world.planning_horizon):
+                        if self.world.control_count + i <= 100:
+                            desired_speed = (self.world.control_count + 1 + i)/100.0 * road_desired_speed
+                        else:
+                            desired_speed = road_desired_speed
+                        dist = self.world.time_step * road_desired_speed
+                        current_waypoint = prev_waypoint.next(dist)[0]
+                        print(f"current_waypoint: {current_waypoint}")
+                        waypoints.append([current_waypoint.transform.location.x, current_waypoint.transform.location.y, road_desired_speed, wrap_angle(current_waypoint.transform.rotation.yaw)])
+                        prev_waypoint = current_waypoint
+
+                
+                
+                print(f'wp real: {waypoints}')
+                print(f'wp RL: {waypoints_RL}')
+                
+                # draw_waypoints(self.world, wp_draw)
+                # print(waypoints[0][0]-current_x)
+                # print(waypoints[1][0]-current_x)
+                # print(waypoints[2][0]-current_x)
+
+                # print(waypoints[0][1]-current_y)
+                # print(waypoints[1][1]-current_y)
+                # print(waypoints[2][1]-current_y)
+
+                # print(waypoints[0][3]-current_yaw)
+                # print(waypoints[1][3]-current_yaw)
+                # print(waypoints[2][3]-current_yaw)
+                # x0= 
+                # y0=  calcular os 3 primeiros waypoints
+                # w0=
+                # v_desired = 
+
+             
+              
+                self.world.controller.update_waypoints(waypoints_RL)     
+                self.world.controller.update_controls()
+                self._control.throttle, self._control.steer, self._control.brake = self.world.controller.get_commands()
+                self.world.player.apply_control(self._control)
+                self.world.control_count += 1
+            # world.player.set_transform(current_waypoint.transform)
+
+        
 
         
    

@@ -13,24 +13,45 @@ from  Vehicle_Control import VehicleControl
 from World import World
 import argparse
 import logging
+from stable_baselines3 import PPO #PPO
+import os 
 
+models_dir = f"models/{int(time.time())}/"
+logdir = f"logs/{int(time.time())}/"
 
+if not os.path.exists(models_dir):
+	os.makedirs(models_dir)
+
+if not os.path.exists(logdir):
+	os.makedirs(logdir)
 
 
 
 def game_loop(args): 
     world=None   
     try: 
+
         client = carla.Client(args.host, args.port)
         client.set_timeout(100.0)
         hud = HUD()
-        # carla_world = client.load_world(args.map)
+        carla_world = client.load_world(args.map)
         carla_world = client.get_world()
         world = World(client, carla_world, hud, args)
         controller = VehicleControl(world)
 
-        world.generate_episode(controller)
-        
+        world.reset()
+        model = PPO('MlpPolicy', world, verbose=1,learning_rate=0.001, tensorboard_log=logdir)
+
+       
+        TIMESTEPS = 500_000 # how long is each training iteration - individual steps
+        iters = 0
+        while iters<4:  # how many training iterations you want
+            iters += 1
+            print('Iteration ', iters,' is to commence...')
+            model.learn(total_timesteps=TIMESTEPS, reset_num_timesteps=False, tb_log_name=f"PPO" )
+            print('Iteration ', iters,' has been trained')
+            model.save(f"{models_dir}/{TIMESTEPS*iters}")
+                
     finally:
 
             if world is not None:

@@ -109,7 +109,15 @@ def process_img2(self, image,  dim_x=128, dim_y=128):
     mean, std = 0.5, 0.5
     normalizedImg = (scaledImg - mean) / std
 
-    return normalizedImg
+
+    xx = np.matrix(resized_img)
+    # print (xx.max())
+    # print (xx.min())
+    # print(scaledImg)
+
+    shap = xx[:, :, np.newaxis]
+
+    return np.array(shap)
     
 
 def draw_image(surface, image, blend=False):
