@@ -15,7 +15,9 @@ import argparse
 import logging
 from stable_baselines3 import PPO #PPO
 import os
-from callbacks import TensorboardCallback
+from stable_baselines3.common.callbacks import CallbackList
+from callbacks import TensorboardCallback, SaveOnBestTrainingRewardCallback
+from stable_baselines3.common.monitor import Monitor
 
 models_dir = f"models/{int(time.time())}/"
 logdir = f"logs/{int(time.time())}/"
@@ -38,17 +40,20 @@ def game_loop(args):
         # carla_world = client.load_world(args.map)
         carla_world = client.get_world()
         world = World(client, carla_world, hud, args)
+        world = Monitor(world, logdir)
         world.reset()
-        model = PPO('CnnPolicy', world, learning_rate=0.001, tensorboard_log=logdir)
-        
+        model = PPO('CnnPolicy', world, verbose=1, learning_rate=0.001, tensorboard_log=logdir)
+        # Create Callback
+        save_callback = SaveOnBestTrainingRewardCallback(check_freq=20, log_dir=models_dir, verbose=1) 
+        tensor = TensorboardCallback()  
        
         TIMESTEPS = 1000 # how long is each training iteration - individual steps
         iters = 0
-        while iters<5:  # how many training iterations you want
+        while iters<100:  # how many training iterations you want
             iters += 1
 
             print('Iteration ', iters,' is to commence...')
-            model.learn(total_timesteps=TIMESTEPS, reset_num_timesteps=False, tb_log_name=f"PPO", callback = TensorboardCallback())
+            model.learn(total_timesteps=TIMESTEPS, reset_num_timesteps=False, tb_log_name=f"PPO", callback = CallbackList([save_callback, tensor]))
             print('Iteration ', iters,' has been trained')
             model.save(f"{models_dir}/{TIMESTEPS*iters}")
 

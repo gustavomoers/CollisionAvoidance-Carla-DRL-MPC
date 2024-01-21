@@ -94,14 +94,14 @@ def process_img2(self, image,  dim_x=128, dim_y=128):
     #print(i.shape)
     i2 = i.reshape((self.im_height, self.im_width, 4))
     i3 = i2[:, :, :3]
-    cv2.imwrite(f'F:/CollisionAvoidance-Carla-DRL-MPC/_out/ground/{self.global_t}.png', i3)
+    # cv2.imwrite(f'F:/CollisionAvoidance-Carla-DRL-MPC/_out/ground/{self.global_t}.png', i3)
 
     img_gray = cv2.cvtColor(i3, cv2.COLOR_BGR2GRAY)
     # cv2.imwrite(f'./_out/test/gray{self.global_t}.png', img_gray)
 
     dim = (dim_x, dim_y)  # set same dim for now
     resized_img = cv2.resize(img_gray, dim, interpolation=cv2.INTER_AREA)
-    cv2.imwrite(f'F:/CollisionAvoidance-Carla-DRL-MPC/_out/resized/{self.global_t}.png', resized_img)
+    # cv2.imwrite(f'F:/CollisionAvoidance-Carla-DRL-MPC/_out/resized/{self.global_t}.png', resized_img)
     
     scaledImg = resized_img/255.
 
