@@ -1,5 +1,4 @@
 import pygame
-import random
 import carla
 from Utils.synch_mode import CarlaSyncMode
 import Controller.PIDController as PIDController
@@ -10,11 +9,11 @@ import math
 import gym
 import gymnasium as gym
 from gymnasium import spaces
-import cv2
+from Utils.HUD_visuals import *
 
 
 class World(gym.Env):
-    def __init__(self, client, carla_world, hud, args):
+    def __init__(self, client, carla_world, hud, args, visuals=False):
         self.world = carla_world
         self.client = client
         self.actor_role_name = args.rolename
@@ -25,7 +24,7 @@ class World(gym.Env):
         self.lane_invasion_sensor = None
         self.gnss_sensor = None
         self.camera_manager = None
-        # self._weather_presets = find_weather_presets()
+        self._weather_presets = find_weather_presets()
         self._weather_index = 0
         self._actor_filter = "vehicle.*"
         self._gamma = args.gamma
@@ -47,7 +46,7 @@ class World(gym.Env):
         self.im_width = 640
         self.im_height = 480
         self.episode_start = 0
-        self.visuals = False
+        self.visuals = visuals
         self.episode_reward = 0
         self.cos_list = []
         self.dist_list = []
@@ -57,6 +56,10 @@ class World(gym.Env):
         self.camera_rgb = None
         self.camera_rgb_vis = None
         self.lane_invasion = None
+        self.collision_sensor_hud = None
+        self.lane_invasion_sensor = None
+        self.gnss_sensor = None
+        self.camera_manager = None
         self._autopilot_enabled = False
         self._control = carla.VehicleControl()
         self._steer_cache = 0.0
@@ -74,9 +77,9 @@ class World(gym.Env):
         self.observation_space = spaces.Box(low=-0, high=255, shape=(128, 128, 1), dtype=np.uint8)
 
 
-
-        if self.visuals:
-            self._initiate_visuals()
+        # self.visuals = visuals
+        # if self.visuals:
+        #     self._initiate_visuals()
         
         self.global_t = 0 # global timestep
         
@@ -84,10 +87,12 @@ class World(gym.Env):
 
         self.destroy()
         self.episode_reward = 0
-        # # Keep same camera config if the camera manager exists.
-        # cam_index = self.camera_manager.index if self.camera_manager is not None else 0
-        # # cam_pos_index = self.camera_manager.transform_index if self.camera_manager is not None else 0
-        # # # Get a random blueprint.
+
+        if self.visuals:
+            # Keep same camera config if the camera manager exists.
+            cam_index = self.camera_manager.index if self.camera_manager is not None else 0
+            cam_pos_index = self.camera_manager.transform_index if self.camera_manager is not None else 0
+            # # # Get a random blueprint.
         # blueprints = self.world.get_blueprint_library().filter(self._actor_filter)
         # blueprint = None
         # for blueprint_candidates in blueprints:
@@ -194,13 +199,30 @@ class World(gym.Env):
         self.controller.update_values(current_x, current_y, current_yaw, current_speed, current_timestamp, frame)
         self.episode_start = time.time()
 
+        if self.visuals:
+            self.collision_sensor_hud = CollisionSensor(self.player, self.hud)
+            self.lane_invasion_sensor = LaneInvasionSensor(self.player, self.hud)
+            self.gnss_sensor = GnssSensor(self.player)
+            self.camera_manager = CameraManager(self.player, self.hud, self._gamma)
+            self.camera_manager.transform_index = cam_pos_index
+            self.camera_manager.set_sensor(cam_index, notify=False)
+
+
         with CarlaSyncMode(self.world, self.camera_rgb, self.camera_rgb_vis, self.lane_invasion, self.collision_sensor, fps=10) as self.sync_mode:
             snapshot, image_rgb, image_rgb_vis, lane, collision = self.sync_mode.tick(timeout=10.0)
             # if snapshot is not None:
             #     print("snapshot 1 ok")
 
             img = process_img2(self, image_rgb)
-            clock = pygame.time.Clock()
+            self.clock = pygame.time.Clock()
+            if self.visuals:  
+                self.display = pygame.display.set_mode(
+                            (self.args.width, self.args.height),
+                            pygame.HWSURFACE | pygame.DOUBLEBUF)
+                # self.world.tick(clock)
+                # self.world.render(display)
+                # pygame.display.flip()
+
             # while current_speed < self.desired_speed - 5:
             #     if self.parse_events(clock=clock, action=None):
             #         return
@@ -216,21 +238,35 @@ class World(gym.Env):
 
         return img, {}
 
+    def render(self, display):
+        self.camera_manager.render(display)
+        self.hud.render(display)
+
+    def next_weather(self, reverse=False):
+        self._weather_index += -1 if reverse else 1
+        self._weather_index %= len(self._weather_presets)
+        preset = self._weather_presets[self._weather_index]
+        self.hud.notification('Weather: %s' % preset[1])
+        self.player.get_world().set_weather(preset[0])
+
     def tick(self, clock):
         self.hud.tick(self, clock)
 
-    def destroy_sensors(self):
-        self.camera_manager.sensor.destroy()
-        self.camera_manager.sensor = None
-        self.camera_manager.index = None
-
     def destroy(self):
+
         actors = [
             self.player,
             self.collision_sensor,
             self.camera_rgb,
             self.camera_rgb_vis,
             self.lane_invasion]
+
+        if self.collision_sensor_hud is not None:
+            actors.append(self.collision_sensor_hud.sensor)
+            actors.append(self.lane_invasion_sensor.sensor)
+            actors.append(self.gnss_sensor.sensor)
+            actors.append(self.camera_manager.sensor)             
+                           
         for actor in actors:
             if actor is not None:
                 actor.destroy()
@@ -243,7 +279,6 @@ class World(gym.Env):
             pygame.HWSURFACE | pygame.DOUBLEBUF)
         self.font = get_font()
         self.clock = pygame.time.Clock()
-
 
     def step(self, action):
 
@@ -274,13 +309,17 @@ class World(gym.Env):
 
         self.reward = 0
         done = 0
-        clock = pygame.time.Clock()
         cos_yaw_diff = 0
         dist = 0
         collision = 0
         lane = 0
         stat = 0
         traveled = 0
+
+        # if self.visuals:
+        #     if should_quit():
+        #         return
+        #     self.clock.tick_busy_loop(30)
 
         if action is not None:
 
@@ -291,9 +330,9 @@ class World(gym.Env):
             # print(self.global_t)
 
             # clock.tick(5)
-            clock.tick_busy_loop(self.args.FPS)
+            self.clock.tick_busy_loop(self.args.FPS)
             # pygame.time.dalay(500)
-            if self.parse_events(action, clock):
+            if self.parse_events(action, self.clock):
                 return
             
             # self.world.tick(clock)
@@ -309,6 +348,15 @@ class World(gym.Env):
 
             cos_yaw_diff, dist, collision, lane, stat, traveled = self.get_reward_comp(self.player, self.spawn_waypoint, collision, lane, self.controller.stat)
             self.reward = self.reward_value(cos_yaw_diff, dist, collision, lane, stat, traveled)
+
+            fps = round(1.0 / snapshot.timestamp.delta_seconds)
+
+            if self.visuals:
+    
+                self.tick(self.clock)
+                self.render(self.display)
+                pygame.display.flip()
+
 
 
             # self.cos_list.append(cos_yaw_diff)
@@ -343,7 +391,6 @@ class World(gym.Env):
                 
 
         return self.image, self.reward, done, truncated, {}
-
 
     def get_reward_comp(self, vehicle, waypoint, collision, lane, stat):
         vehicle_location = vehicle.get_location()
@@ -380,14 +427,12 @@ class World(gym.Env):
         
         return cos_yaw_diff, dist, collision, lane, stat, traveled
     
-
     def reward_value(self, cos_yaw_diff, dist, collision, lane, stat, traveled, lambda_1=3, lambda_2=5, lambda_3=100, lambda_4=100, lambda_5=0):
     
         reward = (lambda_1 * cos_yaw_diff) - (lambda_2 * dist) - (lambda_3 * collision) - (lambda_4 * lane) + (lambda_5 * stat) + traveled
         
         return reward
     
-
     def parse_events(self, action, clock):
 
         if not self._autopilot_enabled:
@@ -408,7 +453,6 @@ class World(gym.Env):
             
             if ready_to_go:
                 if self.control_mode == "PID":
-                    print('here')
                     current_location = self.player.get_location()
                     current_waypoint = self.map.get_waypoint(current_location).next(self.world.waypoint_resolution)[0]
                     print(current_waypoint.transform.location.x-current_x)

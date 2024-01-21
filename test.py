@@ -1,69 +1,62 @@
 import carla
-import random
-import Controller.PIDController as PIDController
-import Controller.MPCController as MPCController
-import math
-import numpy as np
-from Utils.synch_mode import CarlaSyncMode
-import time
 from Utils.utils import *
-from Utils.HUD import HUD as HUD
-import pygame
-from  Vehicle_Control import VehicleControl
+from Utils.HUD_visuals import HUD as HUD
 from World import World
 import argparse
 import logging
 from stable_baselines3 import PPO #PPO
-import os
-from stable_baselines3.common.callbacks import CallbackList
-from callbacks import TensorboardCallback, SaveOnBestTrainingRewardCallback
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.evaluation import evaluate_policy
 
-models_dir = f"models/{int(time.time())}/"
-logdir = f"logs/{int(time.time())}/"
-
-if not os.path.exists(models_dir):
-	os.makedirs(models_dir)
+run = '1705800721'
+logdir = f"logs/{run}/evaluation"
 
 if not os.path.exists(logdir):
 	os.makedirs(logdir)
 
 
-
 def game_loop(args): 
-    world=None   
+    world=None 
+    pygame.init()
+    pygame.font.init()  
     try: 
 
         client = carla.Client(args.host, args.port)
         client.set_timeout(100.0)
-        hud = HUD()
-        carla_world = client.load_world(args.map)
+
+
+        hud = HUD(args.width, args.height)
+        # carla_world = client.load_world(args.map)
         carla_world = client.get_world()
-        world = World(client, carla_world, hud, args)
+        world = World(client, carla_world, hud, args, visuals=True)
         world = Monitor(world, logdir)
         world.reset()
 
-        model = PPO.load("F:/CollisionAvoidance-Carla-DRL-MPC/logs/1705800721/best_model.zip", env=world, print_system_info=True)
+        model = PPO.load(f"F:/CollisionAvoidance-Carla-DRL-MPC/logs/{run}/best_model.zip", env=world, print_system_info=True)
 
-        mean_reward, std_reward = evaluate_policy(model, model.get_env(), n_eval_episodes=10)
-
+        mean_reward, std_reward = evaluate_policy(model, model.get_env(), n_eval_episodes=1)
 
 
         vec_env = model.get_env()
         obs = vec_env.reset()
         iters = 0
-        while iters<10:  # how many testing iterations you want
+        while iters<1:  # how many testing iterations you want
             iters += 1
 
             action, _states = model.predict(obs, deterministic=True)
             obs, rewards, dones, info = vec_env.step(action)
-
+           
                 
     finally:
 
-            if world is not None:
-                world.destroy()        
+        if (world and world.recording_enabled):
+            client.stop_recorder()
+
+        if world is not None:
+            world.destroy()  
+
+        pygame.quit()
+                  
 
 
 

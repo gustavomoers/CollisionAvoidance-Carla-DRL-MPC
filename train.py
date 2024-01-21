@@ -1,15 +1,7 @@
 import carla
-import random
-import Controller.PIDController as PIDController
-import Controller.MPCController as MPCController
-import math
-import numpy as np
-from Utils.synch_mode import CarlaSyncMode
 import time
 from Utils.utils import *
 from Utils.HUD import HUD as HUD
-import pygame
-from  Vehicle_Control import VehicleControl
 from World import World
 import argparse
 import logging

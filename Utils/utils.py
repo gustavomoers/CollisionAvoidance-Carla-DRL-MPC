@@ -4,6 +4,7 @@ import pygame
 import math
 import numpy as np
 import carla
+import re
 
 def process_img(image, dim_x=128, dim_y=128):
     array = np.frombuffer(image.raw_data, dtype=np.dtype("uint8"))
@@ -211,3 +212,17 @@ def draw_waypoints(world, waypoints, z=0.5, color=(255,0,0)): # from carla/agent
         # angle = math.radians(t.rotation.yaw)
         # end = begin + carla.Location(x=math.cos(angle), y=math.sin(angle))
         world.debug.draw_point(begin, size=0.05, color=color, life_time=0.1)
+
+
+
+def find_weather_presets():
+    rgx = re.compile('.+?(?:(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])|$)')
+    name = lambda x: ' '.join(m.group(0) for m in rgx.finditer(x))
+    presets = [x for x in dir(carla.WeatherParameters) if re.match('[A-Z].+', x)]
+    return [(getattr(carla.WeatherParameters, x), name(x)) for x in presets]
+
+
+
+def get_actor_display_name(actor, truncate=250):
+    name = ' '.join(actor.type_id.replace('_', '.').title().split('.')[1:])
+    return (name[:truncate - 1] + u'\u2026') if len(name) > truncate else name
