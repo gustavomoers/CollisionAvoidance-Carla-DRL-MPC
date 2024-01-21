@@ -1,11 +1,13 @@
 logs/
 weights/
 runs/
+models/
 __pycache__/
 _out/
 weights_past/
 videos/
-DQN_Control/__pycache__/
-
+Controller/__pycache__/
+Utils/__pycache__/
+.venv/
 
 
