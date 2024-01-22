@@ -10,6 +10,7 @@ import gym
 import gymnasium as gym
 from gymnasium import spaces
 from Utils.HUD_visuals import *
+import random
 
 
 class World(gym.Env):
@@ -52,6 +53,7 @@ class World(gym.Env):
         self.dist_list = []
         self.SHOW_CAM = True
         self.player = None
+        self.parked_vehicle = None
         self.collision_sensor = None
         self.camera_rgb = None
         self.camera_rgb_vis = None
@@ -63,7 +65,7 @@ class World(gym.Env):
         self._autopilot_enabled = False
         self._control = carla.VehicleControl()
         self._steer_cache = 0.0
-        self.max_dist = 2.5
+        self.max_dist = 3.5
         self.y_values_RL =np.array([self.waypoint_lookahead_distance, 2 * self.waypoint_lookahead_distance])
         self.x_values_RL = np.array([-self.max_dist, self.max_dist])
         # self.yaw_values_RL = np.array([self.max_dist, 2.5])
@@ -174,6 +176,12 @@ class World(gym.Env):
             carla.Transform(),
             attach_to=self.player)
         
+        # creating parked vehicles
+
+        parking_position = carla.Transform(self.player.get_transform().location + carla.Location(-0.5, 15, 0.5), 
+                            carla.Rotation(0,90,0))
+        self.parked_vehicle = self.world.spawn_actor(random.choice(self.vehicle_blueprint), parking_position)
+        
         ## CONTROLLER
 
         self.control_count = 0
@@ -259,7 +267,8 @@ class World(gym.Env):
             self.collision_sensor,
             self.camera_rgb,
             self.camera_rgb_vis,
-            self.lane_invasion]
+            self.lane_invasion,
+            self.parked_vehicle]
 
         if self.collision_sensor_hud is not None:
             actors.append(self.collision_sensor_hud.sensor)
@@ -366,12 +375,20 @@ class World(gym.Env):
 
             self.image = process_img2(self, image_rgb)
             
-            done = 1 if collision or lane else 0
+            done = 1 if collision else 0
 
             
             if dist > self.max_dist:
                 done=1
 
+            vehicle_location = self.player.get_location()
+            y_vh = vehicle_location.y
+
+
+
+            if y_vh > float(self.args.spawn_y)+30:
+                print("episode ended by reaching goal position")
+                done=True
 
             truncated = 0
 
@@ -415,7 +432,7 @@ class World(gym.Env):
 
         traveled = y_vh - float(self.args.spawn_y)
         
- 
+        print(stat)
         if stat is None:
             stat = 0
         elif stat == "infeasible":
@@ -427,7 +444,7 @@ class World(gym.Env):
         
         return cos_yaw_diff, dist, collision, lane, stat, traveled
     
-    def reward_value(self, cos_yaw_diff, dist, collision, lane, stat, traveled, lambda_1=3, lambda_2=5, lambda_3=100, lambda_4=100, lambda_5=0):
+    def reward_value(self, cos_yaw_diff, dist, collision, lane, stat, traveled, lambda_1=3, lambda_2=5, lambda_3=200, lambda_4=50, lambda_5=0):
     
         reward = (lambda_1 * cos_yaw_diff) - (lambda_2 * dist) - (lambda_3 * collision) - (lambda_4 * lane) + (lambda_5 * stat) + traveled
         
@@ -518,7 +535,7 @@ class World(gym.Env):
 
                     road_desired_speed = self.desired_speed
                     waypoints_RL = [[x0, y0, road_desired_speed, yaw0], [x1, y1, road_desired_speed, yaw1], [x2, y2, road_desired_speed, yaw2]]
-                    # print(f'wp RL: {waypoints_RL}')
+                    print(f'wp RL: {waypoints_RL}')
                 
                     for z in waypoints_RL:
                         spawn_location_r = carla.Location()
@@ -571,7 +588,7 @@ class World(gym.Env):
                 self.controller.update_controls()
                 
                 self._control.throttle, self._control.steer, self._control.brake = self.controller.get_commands()
-                # print(self._control)
+                print(self._control)
                 self.player.apply_control(self._control)
                 self.control_count += 1
             # world.player.set_transform(current_waypoint.transform)

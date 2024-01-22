@@ -8,8 +8,10 @@ import logging
 from stable_baselines3 import PPO #PPO
 import os
 from stable_baselines3.common.callbacks import CallbackList
-from callbacks import TensorboardCallback, SaveOnBestTrainingRewardCallback
+from callbacks import *
 from stable_baselines3.common.monitor import Monitor
+from stable_baselines3.common.logger import configure
+from stable_baselines3.common.callbacks import CheckpointCallback
 
 models_dir = f"models/{int(time.time())}/"
 logdir = f"logs/{int(time.time())}/"
@@ -21,6 +23,7 @@ if not os.path.exists(logdir):
 	os.makedirs(logdir)
 
 
+# new_logger = configure(logdir, ["stdout", "csv", "tensorboard"])
 
 def game_loop(args): 
     world=None   
@@ -34,18 +37,23 @@ def game_loop(args):
         world = World(client, carla_world, hud, args)
         world = Monitor(world, logdir)
         world.reset()
-        model = PPO('CnnPolicy', world, verbose=1, learning_rate=0.001, tensorboard_log=logdir)
+        model = PPO('CnnPolicy', world, verbose=2, learning_rate=0.001, n_steps=100, tensorboard_log=logdir) # tensorboard_log=logdir
         # Create Callback
-        save_callback = SaveOnBestTrainingRewardCallback(check_freq=20, log_dir=models_dir, verbose=1) 
+        save_callback = SaveOnBestTrainingRewardCallback(check_freq=20, log_dir=logdir, verbose=1) 
         tensor = TensorboardCallback()  
+        # logger = HParamCallback()
+        # printer = MeticLogger()
+        # plotter = PlottingCallback(log_dir=logdir)
+        # checkpoint = CheckpointCallback(save_freq=500, save_path=models_dir)
        
-        TIMESTEPS = 1000 # how long is each training iteration - individual steps
+        TIMESTEPS = 500000 # how long is each training iteration - individual steps
         iters = 0
-        while iters<100:  # how many training iterations you want
+        while iters<10:  # how many training iterations you want
             iters += 1
 
             print('Iteration ', iters,' is to commence...')
-            model.learn(total_timesteps=TIMESTEPS, reset_num_timesteps=False, tb_log_name=f"PPO", callback = CallbackList([save_callback, tensor]))
+            model.learn(total_timesteps=TIMESTEPS, reset_num_timesteps=False, tb_log_name=f"PPO", progress_bar=True, 
+                        callback = CallbackList([tensor, save_callback])) # callback = CallbackList([save_callback, tensor])
             print('Iteration ', iters,' has been trained')
             model.save(f"{models_dir}/{TIMESTEPS*iters}")
 
