@@ -8,7 +8,7 @@ from stable_baselines3 import PPO #PPO
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.evaluation import evaluate_policy
 
-run = '1705887507'
+run = '1705800721-working_LKA'
 logdir = f"logs/{run}/evaluation"
 
 if not os.path.exists(logdir):
@@ -34,13 +34,13 @@ def game_loop(args):
 
         model = PPO.load(f"F:/CollisionAvoidance-Carla-DRL-MPC/logs/{run}/best_model.zip", env=world, print_system_info=True)
 
-        mean_reward, std_reward = evaluate_policy(model, model.get_env(), n_eval_episodes=100)
+        mean_reward, std_reward = evaluate_policy(model, model.get_env(), n_eval_episodes=10)
 
 
         vec_env = model.get_env()
         obs = vec_env.reset()
         iters = 0
-        while iters<100:  # how many testing iterations you want
+        while iters<10:  # how many testing iterations you want
             iters += 1
 
             action, _states = model.predict(obs, deterministic=True)
