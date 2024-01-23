@@ -8,7 +8,7 @@ from stable_baselines3 import PPO #PPO
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.evaluation import evaluate_policy
 
-run = '1705800721-working_LKA'
+run = '1705972272'
 logdir = f"logs/{run}/evaluation"
 
 if not os.path.exists(logdir):

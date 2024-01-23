@@ -37,38 +37,19 @@ def game_loop(args):
         world = World(client, carla_world, hud, args)
         world = Monitor(world, logdir)
         world.reset()
-        model = PPO('CnnPolicy', world, verbose=2, learning_rate=0.001, n_steps=100, tensorboard_log=logdir) # tensorboard_log=logdir
+        model = PPO('CnnPolicy', world, verbose=2, learning_rate=0.001, n_steps=128, tensorboard_log=logdir) # tensorboard_log=logdir
         # Create Callback
-        save_callback = SaveOnBestTrainingRewardCallback(check_freq=20, log_dir=logdir, verbose=1) 
+        save_callback = SaveOnBestTrainingRewardCallback(check_freq=200, log_dir=logdir, verbose=1) 
         tensor = TensorboardCallback()  
         # logger = HParamCallback()
         # printer = MeticLogger()
         # plotter = PlottingCallback(log_dir=logdir)
         # checkpoint = CheckpointCallback(save_freq=500, save_path=models_dir)
        
+
         TIMESTEPS = 500000 # how long is each training iteration - individual steps
-        iters = 0
-        while iters<10:  # how many training iterations you want
-            iters += 1
-
-            print('Iteration ', iters,' is to commence...')
-            model.learn(total_timesteps=TIMESTEPS, reset_num_timesteps=False, tb_log_name=f"PPO", progress_bar=True, 
-                        callback = CallbackList([tensor, save_callback])) # callback = CallbackList([save_callback, tensor])
-            print('Iteration ', iters,' has been trained')
-            model.save(f"{models_dir}/{TIMESTEPS*iters}")
-
-
-            # action = world.action_space.sample()
-            # print(action)
-
-            # img, rew, done, info = world.step(action)
-            # print(f"reward: {rew}")
-            # print(f"done: {done}")
-
-            # if done:
-            #      world.reset()
-            #      break
-
+        model.learn(total_timesteps=TIMESTEPS, reset_num_timesteps=False, tb_log_name=f"PPO", progress_bar=True, 
+                        callback = CallbackList([tensor, save_callback])) 
                 
     finally:
 

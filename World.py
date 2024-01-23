@@ -66,9 +66,9 @@ class World(gym.Env):
         self._autopilot_enabled = False
         self._control = carla.VehicleControl()
         self._steer_cache = 0.0
-        self.max_dist = 3.5
+        self.max_dist = 4.5
         self.y_values_RL =np.array([self.waypoint_lookahead_distance, 2 * self.waypoint_lookahead_distance])
-        self.x_values_RL = np.array([-self.max_dist, self.max_dist])
+        self.x_values_RL = np.array([-3, 3])
         # self.yaw_values_RL = np.array([self.max_dist, 2.5])
         self.counter = 0
     
@@ -132,7 +132,7 @@ class World(gym.Env):
 
         spectator = self.world.get_spectator()
         transform = self.player.get_transform()
-        spectator.set_transform(carla.Transform(transform.location + carla.Location(y=20,z=58.5), carla.Rotation(pitch=-90)))
+        spectator.set_transform(carla.Transform(transform.location + carla.Location(y=15,z=58.5), carla.Rotation(pitch=-90)))
 
         # spawn_points = self.world.get_map().get_spawn_points()
         # spawn_point = random.choice(spawn_points) if spawn_points else carla.Transform()
@@ -178,9 +178,9 @@ class World(gym.Env):
         
         # creating parked vehicles
 
-        # parking_position = carla.Transform(self.player.get_transform().location + carla.Location(-0.5, 15, 0.5), 
-        #                     carla.Rotation(0,90,0))
-        # self.parked_vehicle = self.world.spawn_actor(random.choice(self.vehicle_blueprint), parking_position)
+        parking_position = carla.Transform(self.player.get_transform().location + carla.Location(-0.5, 60, 0.5), 
+                             carla.Rotation(0,90,0))
+        self.parked_vehicle = self.world.spawn_actor(self.vehicle_blueprint.filter('model3')[0], parking_position)
         
         # ## CONTROLLER
 
@@ -232,13 +232,8 @@ class World(gym.Env):
                 # pygame.display.flip()
 
 
-            # for x in self.list_wp:
-            #     print(x)
-            #     self.print_waypoints(x)
-            #     self.predefined_watpoints(x)
 
-            #     snapshot, image_rgb, image_rgb_vis, lane, collision = self.sync_mode.tick(timeout=10.0)
-            # # while True:
+            # while True:
             #     # clock.tick(5)
             #     self.clock.tick_busy_loop(self.args.FPS)
             #     # pygame.time.dalay(500)
@@ -246,26 +241,28 @@ class World(gym.Env):
             #         return
                 
             #     snapshot, image_rgb, image_rgb_vis, lane, collision = self.sync_mode.tick(timeout=10.0)
-            # current_speed_st = current_speed
-            # while True:
+                
+            velocity_vec_st= self.player.get_velocity()
+            current_speed_st = math.sqrt(velocity_vec_st.x**2 + velocity_vec_st.y**2 + velocity_vec_st.z**2)
 
-            #     velocity_vec_st = self.player.get_velocity()
-            #     current_speed_st = math.sqrt(velocity_vec_st.x**2 + velocity_vec_st.y**2 + velocity_vec_st.z**2)
-            #     print(current_speed_st)
-            #     self.clock.tick_busy_loop(self.args.FPS)
-            #     if self.parse_events(clock=self.clock, action=None):
-            #         return
+            while current_speed_st < self.desired_speed-5:
+
+                velocity_vec_st= self.player.get_velocity()
+                current_speed_st = math.sqrt(velocity_vec_st.x**2 + velocity_vec_st.y**2 + velocity_vec_st.z**2)
+                # print(current_speed_st)
+                
+                # current_transform_st = self.player.get_transform()
+                # current_location_st = current_transform_st.location
+                # current_y_st = current_location_st.y
+                # # print(current_y_st)
+
+                self.clock.tick_busy_loop(self.args.FPS)
+                if self.parse_events(clock=self.clock, action=None):
+                    return
                     
-            #     if current_speed_st > 8:
-            #         break
-                # velocity_vec_start = self.player.get_velocity()
-                # current_speed_start = math.sqrt(velocity_vec_start.x**2 + velocity_vec_start.y**2 + velocity_vec_start.z**2)
-                # print(f"curr_speed: {current_speed_start}")
-                # if current_speed_start > 10:
-                #      break
-
-        # im = cv2.imread("F:/CollisionAvoidance-Carla-DRL-MPC/_out/resized/first.png",cv2.IMREAD_GRAYSCALE)
-        # shap = im[:, :, np.newaxis]
+                snapshot, image_rgb, image_rgb_vis, lane, collision = self.sync_mode.tick(timeout=10.0)
+                if image_rgb is not None:
+                    img = process_img2(self, image_rgb)
 
         return img, {}
 
@@ -406,7 +403,7 @@ class World(gym.Env):
 
 
 
-            if y_vh > float(self.args.spawn_y)+30:
+            if y_vh > float(self.args.spawn_y)+60+15:
                 print("episode ended by reaching goal position")
                 done=True
 
@@ -419,8 +416,8 @@ class World(gym.Env):
             if collision == 1:
                 print("Episode ended by collision")
             
-            if lane == 1:
-                print("Episode ended by lane invasion")
+            # if lane == 1:
+            #     print("Episode ended by lane invasion")
     
 
             if dist > self.max_dist:
@@ -450,9 +447,10 @@ class World(gym.Env):
 
         lane = 0 if lane is None else 1
 
-        traveled = y_vh - float(self.args.spawn_y)
+        traveled = y_vh - float(self.args.spawn_y) -  60
+        print(traveled)
         
-        print(stat)
+        # print(stat)
         if stat is None:
             stat = 0
         elif stat == "infeasible":
@@ -464,7 +462,7 @@ class World(gym.Env):
         
         return cos_yaw_diff, dist, collision, lane, stat, traveled
     
-    def reward_value(self, cos_yaw_diff, dist, collision, lane, stat, traveled, lambda_1=3, lambda_2=5, lambda_3=200, lambda_4=50, lambda_5=0):
+    def reward_value(self, cos_yaw_diff, dist, collision, lane, stat, traveled, lambda_1=3, lambda_2=5, lambda_3=10, lambda_4=7, lambda_5=0):
     
         reward = (lambda_1 * cos_yaw_diff) - (lambda_2 * dist) - (lambda_3 * collision) - (lambda_4 * lane) + (lambda_5 * stat) + traveled
         
@@ -492,8 +490,8 @@ class World(gym.Env):
                 if self.control_mode == "PID":
                     current_location = self.player.get_location()
                     current_waypoint = self.map.get_waypoint(current_location).next(self.world.waypoint_resolution)[0]
-                    print(current_waypoint.transform.location.x-current_x)
-                    print(current_waypoint.transform.location.y-current_y)            
+                    # print(current_waypoint.transform.location.x-current_x)
+                    # print(current_waypoint.transform.location.y-current_y)            
                     waypoints = []
                     for i in range(int(self.world.waypoint_lookahead_distance / self.world.waypoint_resolution)):
                         waypoints.append([current_waypoint.transform.location.x, current_waypoint.transform.location.y, self.world.desired_speed])
@@ -526,14 +524,12 @@ class World(gym.Env):
                     # print(waypoints_RL)
                     self.controller.update_waypoints(waypoints_RL)
                 else:
-                    print(waypoints)
-                    self.list_wp.append(waypoints)
                     self.print_waypoints(waypoints)
                     self.controller.update_waypoints(waypoints)  
 
                 self.controller.update_controls()
                 self._control.throttle, self._control.steer, self._control.brake = self.controller.get_commands()
-                print(self._control)
+                # print(self._control)
                 self.player.apply_control(self._control)
                 self.control_count += 1
             # world.player.set_transform(current_waypoint.transform)
@@ -593,7 +589,7 @@ class World(gym.Env):
         x= [current_x, x0, x1, x2]
         y = [current_y, y0, y1, y2]
 
-        ds = 2  # [m] distance of each interpolated points
+        ds = 2.5  # [m] distance of each interpolated points
         sp = CubicSpline2D(x, y)
 
         s = np.arange(0, sp.s[-1], ds)

@@ -183,7 +183,7 @@ class MPC:
 
         # print(qp.status)
         self.qp_status = str(qp.status)
-        print(self.qp_status)
+        # print(self.qp_status)
 
         if qp.status == cvxpy.OPTIMAL or qp.status == cvxpy.OPTIMAL_INACCURATE:
             x = np.array(z.value[0, :]).flatten()
