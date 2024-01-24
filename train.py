@@ -34,12 +34,17 @@ def game_loop(args):
         hud = HUD()
         # carla_world = client.load_world(args.map)
         carla_world = client.get_world()
+        # carla_world.apply_settings(carla.WorldSettings(
+        #     no_rendering_mode=False,
+        #     synchronous_mode=True,
+        #     fixed_delta_seconds=1/args.FPS))
         world = World(client, carla_world, hud, args)
         world = Monitor(world, logdir)
         world.reset()
-        model = PPO('CnnPolicy', world, verbose=2, learning_rate=0.001, n_steps=128, tensorboard_log=logdir) # tensorboard_log=logdir
+        model = PPO('CnnPolicy', world, verbose=2, learning_rate=0.0003, n_steps=640, n_epochs=30, batch_size=32, ent_coef=0.01,
+                     tensorboard_log=logdir) # tensorboard_log=logdir
         # Create Callback
-        save_callback = SaveOnBestTrainingRewardCallback(check_freq=200, log_dir=logdir, verbose=1) 
+        save_callback = SaveOnBestTrainingRewardCallback(check_freq=1000, log_dir=logdir, verbose=1) 
         tensor = TensorboardCallback()  
         # logger = HParamCallback()
         # printer = MeticLogger()
@@ -181,7 +186,7 @@ def main():
     argparser.add_argument(
         '--FPS',
         metavar='FPS',
-        default='10',
+        default='15',
         type=int,
         help='Frame per second for simulation')
 

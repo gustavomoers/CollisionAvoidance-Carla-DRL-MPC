@@ -1,66 +1,60 @@
 import carla
+import time
 from Utils.utils import *
-from Utils.HUD_visuals import HUD as HUD
+from Utils.HUD import HUD as HUD
 from World import World
 import argparse
 import logging
 from stable_baselines3 import PPO #PPO
+import os
+from stable_baselines3.common.callbacks import CallbackList
+from callbacks import *
 from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.evaluation import evaluate_policy
+from stable_baselines3.common.logger import configure
+from stable_baselines3.common.callbacks import CheckpointCallback
+
 
 run = '1706057961'
-logdir = f"logs/{run}/evaluation"
+logdir = f"logs/{run}"
 
-if not os.path.exists(logdir):
-	os.makedirs(logdir)
 
+# new_logger = configure(logdir, ["stdout", "csv", "tensorboard"])
 
 def game_loop(args): 
-    world=None 
-    pygame.init()
-    pygame.font.init()  
+    world=None   
     try: 
 
         client = carla.Client(args.host, args.port)
         client.set_timeout(100.0)
-
-
-        hud = HUD(args.width, args.height)
+        hud = HUD()
         # carla_world = client.load_world(args.map)
         carla_world = client.get_world()
-        carla_world.apply_settings(carla.WorldSettings(
-            no_rendering_mode=False,
-            synchronous_mode=True,
-            fixed_delta_seconds=1/20))
-        world = World(client, carla_world, hud, args, visuals=False)
+        world = World(client, carla_world, hud, args)
         world = Monitor(world, logdir)
         world.reset()
+        #continue training (Path to the last saved model)
+        model_path = f"logs/{run}/best_model.zip"
+        log_path = f"logs/{run}/"
+        model = PPO.load(model_path, tensorboard_log=log_path, env=world, print_system_info=True)
+    
 
-        model = PPO.load(f"F:/CollisionAvoidance-Carla-DRL-MPC/logs/{run}/best_model.zip", env=world, print_system_info=True)
+        # Create Callback
+        save_callback = SaveOnBestTrainingRewardCallback(check_freq=1000, log_dir=logdir, verbose=1) 
+        tensor = TensorboardCallback()  
+        # logger = HParamCallback()
+        # printer = MeticLogger()
+        # plotter = PlottingCallback(log_dir=logdir)
+        # checkpoint = CheckpointCallback(save_freq=500, save_path=models_dir)
+       
 
-        mean_reward, std_reward = evaluate_policy(model, model.get_env(), n_eval_episodes=10)
-
-
-        vec_env = model.get_env()
-        obs = vec_env.reset()
-        iters = 0
-        while iters<10:  # how many testing iterations you want
-            iters += 1
-
-            action, _states = model.predict(obs, deterministic=True)
-            obs, rewards, dones, info = vec_env.step(action)
-           
+        TIMESTEPS = 500000 # how long is each training iteration - individual steps
+        model.learn(total_timesteps=TIMESTEPS, reset_num_timesteps=False, tb_log_name=f"PPO", progress_bar=True, 
+                        callback = CallbackList([tensor, save_callback])) 
                 
     finally:
 
-        if (world and world.recording_enabled):
-            client.stop_recorder()
-
-        if world is not None:
-            world.destroy()  
-
-        pygame.quit()
-                  
+            if world is not None:
+                world.destroy()        
 
 
 
@@ -187,7 +181,7 @@ def main():
     argparser.add_argument(
         '--FPS',
         metavar='FPS',
-        default='10',
+        default='15',
         type=int,
         help='Frame per second for simulation')
 
