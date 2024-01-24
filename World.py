@@ -14,6 +14,7 @@ import random
 from Utils.CubicSpline.cubic_spline_planner import *
 
 
+
 class World(gym.Env):
     def __init__(self, client, carla_world, hud, args, visuals=False):
         self.world = carla_world
@@ -71,7 +72,12 @@ class World(gym.Env):
         self.x_values_RL = np.array([-3, 3])
         # self.yaw_values_RL = np.array([self.max_dist, 2.5])
         self.counter = 0
-    
+        self.frame = None
+        self.delta_seconds = 1.0 / args.FPS
+        self._queues = []
+        self._settings = None
+        self.collisions = []
+        self.last_y = 0
 
 
         ## RL STABLE BASELINES
@@ -84,38 +90,24 @@ class World(gym.Env):
         #     self._initiate_visuals()
         
         self.global_t = 0 # global timestep
-        
+
+
+
     def reset(self, seed=None):
 
         self.destroy()
+        self.world.apply_settings(carla.WorldSettings(
+            no_rendering_mode=False,
+            synchronous_mode=True,
+            fixed_delta_seconds=1/self.args.FPS))
         self.episode_reward = 0
 
         if self.visuals:
             # Keep same camera config if the camera manager exists.
             cam_index = self.camera_manager.index if self.camera_manager is not None else 0
             cam_pos_index = self.camera_manager.transform_index if self.camera_manager is not None else 0
-            # # # Get a random blueprint.
-        # blueprints = self.world.get_blueprint_library().filter(self._actor_filter)
-        # blueprint = None
-        # for blueprint_candidates in blueprints:
-        #     # print(blueprint_candidates.id)
-        #     if blueprint_candidates.id == self.args.vehicle_id:
-        #         blueprint = blueprint_candidates
-        #         break
-        # if blueprint is None:
-        #     blueprint = random.choice(self.world.get_blueprint_library().filter(self._actor_filter))
 
-        # blueprint.set_attribute('role_name', self.actor_role_name)
-        # if blueprint.has_attribute('color'):
-        #     color = random.choice(blueprint.get_attribute('color').recommended_values)
-        #     blueprint.set_attribute('color', color)
-        # if blueprint.has_attribute('driver_id'):
-        #     driver_id = random.choice(blueprint.get_attribute('driver_id').recommended_values)
-        #     blueprint.set_attribute('driver_id', driver_id)
-        # if blueprint.has_attribute('is_invincible'):
-        #     blueprint.set_attribute('is_invincible', 'true')
-        # # Spawn the player.
-            
+
         self.blueprint_library = self.world.get_blueprint_library()
         self.vehicle_blueprint = self.blueprint_library.filter('*vehicle*')
         self.walker_blueprint = self.blueprint_library.filter('*walker.*')
@@ -127,6 +119,8 @@ class World(gym.Env):
         spawn_transform = self.spawn_waypoint.transform
         spawn_transform.location.z = 1.0
         self.player = self.world.try_spawn_actor(self.vehicle_blueprint.filter('model3')[0], spawn_transform)
+
+        self.world.tick()
             
         print('vehicle spawned')
 
@@ -134,12 +128,9 @@ class World(gym.Env):
         transform = self.player.get_transform()
         spectator.set_transform(carla.Transform(transform.location + carla.Location(y=15,z=58.5), carla.Rotation(pitch=-90)))
 
-        # spawn_points = self.world.get_map().get_spawn_points()
-        # spawn_point = random.choice(spawn_points) if spawn_points else carla.Transform()
-        # self.player = self.world.try_spawn_actor(blueprint, spawn_point)
+        self.world.tick()
 
-
-        ## CAMERA RGB
+        # ## CAMERA RGB
 
         self.rgb_cam = self.blueprint_library.find('sensor.camera.rgb')
         self.rgb_cam.set_attribute("image_size_x", f"{640}")
@@ -149,18 +140,8 @@ class World(gym.Env):
             self.rgb_cam,
             carla.Transform(carla.Location(x=2, z=1), carla.Rotation(0,0,0)),
             attach_to=self.player)
-        
+        self.world.tick()
 
-        ## CAMERA FOR VIZUALIZATION
-
-        self.vis_cam = self.blueprint_library.find('sensor.camera.rgb')
-        self.vis_cam.set_attribute("image_size_x", f"{640}")
-        self.vis_cam.set_attribute("image_size_y", f"{480}")
-        self.vis_cam.set_attribute("fov", f"110")
-        self.camera_rgb_vis = self.world.spawn_actor(
-            self.vis_cam,
-            carla.Transform(carla.Location(x=-5.5, z=2.8), carla.Rotation(pitch=-15)),
-            attach_to=self.player)
 
         ## LANE VIZUALIZATION
 
@@ -169,6 +150,8 @@ class World(gym.Env):
             carla.Transform(), 
             attach_to=self.player)
 
+
+        self.world.tick()
         ## COLLISION SENSOR
 
         self.collision_sensor = self.world.spawn_actor(
@@ -176,13 +159,21 @@ class World(gym.Env):
             carla.Transform(),
             attach_to=self.player)
         
+  
+        self.world.tick()
+
+        self.synch_mode = CarlaSyncMode(self.world, self.camera_rgb, self.lane_invasion, self.collision_sensor)
+
+    
         # creating parked vehicles
 
         parking_position = carla.Transform(self.player.get_transform().location + carla.Location(-0.5, 60, 0.5), 
                              carla.Rotation(0,90,0))
         self.parked_vehicle = self.world.spawn_actor(self.vehicle_blueprint.filter('model3')[0], parking_position)
         
-        # ## CONTROLLER
+        self.world.tick()
+
+        # # ## CONTROLLER
 
         self.control_count = 0
         if self.control_mode == "PID":
@@ -202,11 +193,10 @@ class World(gym.Env):
         current_yaw = wrap_angle(current_roration.yaw)
         current_speed = math.sqrt(velocity_vec.x**2 + velocity_vec.y**2 + velocity_vec.z**2)
         frame, current_timestamp = self.hud.get_simulation_information()
-        # print(frame)
-        # print(current_timestamp)
         self.controller.update_values(current_x, current_y, current_yaw, current_speed, current_timestamp, frame)
         self.episode_start = time.time()
 
+        
         if self.visuals:
             self.collision_sensor_hud = CollisionSensor(self.player, self.hud)
             self.lane_invasion_sensor = LaneInvasionSensor(self.player, self.hud)
@@ -216,53 +206,25 @@ class World(gym.Env):
             self.camera_manager.set_sensor(cam_index, notify=False)
 
 
-        with CarlaSyncMode(self.world, self.camera_rgb, self.camera_rgb_vis, self.lane_invasion, self.collision_sensor, fps=10) as self.sync_mode:
-            snapshot, image_rgb, image_rgb_vis, lane, collision = self.sync_mode.tick(timeout=10.0)
-            # if snapshot is not None:
-            #     print("snapshot 1 ok")
+        while current_speed< self.desired_speed-5:
+            
+            snapshot, image_rgb, lane, collision = self.synch_mode.tick(timeout=10.0)
+
+            self.clock = pygame.time.Clock()
+
+            if self.parse_events(clock=self.clock, action=None):
+                 return
+            
+            velocity_vec_st = self.player.get_velocity()
+            current_speed = math.sqrt(velocity_vec_st.x**2 + velocity_vec_st.y**2 + velocity_vec_st.z**2)
+
+            snapshot, image_rgb, lane, collision = self.synch_mode.tick(timeout=10.0)
 
             img = process_img2(self, image_rgb)
-            self.clock = pygame.time.Clock()
-            if self.visuals:  
-                self.display = pygame.display.set_mode(
-                            (self.args.width, self.args.height),
-                            pygame.HWSURFACE | pygame.DOUBLEBUF)
-                # self.world.tick(clock)
-                # self.world.render(display)
-                # pygame.display.flip()
 
-
-
-            # while True:
-            #     # clock.tick(5)
-            #     self.clock.tick_busy_loop(self.args.FPS)
-            #     # pygame.time.dalay(500)
-            #     if self.parse_events(clock=self.clock, action=None):
-            #         return
-                
-            #     snapshot, image_rgb, image_rgb_vis, lane, collision = self.sync_mode.tick(timeout=10.0)
-                
-            velocity_vec_st= self.player.get_velocity()
-            current_speed_st = math.sqrt(velocity_vec_st.x**2 + velocity_vec_st.y**2 + velocity_vec_st.z**2)
-
-            while current_speed_st < self.desired_speed-5:
-
-                velocity_vec_st= self.player.get_velocity()
-                current_speed_st = math.sqrt(velocity_vec_st.x**2 + velocity_vec_st.y**2 + velocity_vec_st.z**2)
-                # print(current_speed_st)
-                
-                # current_transform_st = self.player.get_transform()
-                # current_location_st = current_transform_st.location
-                # current_y_st = current_location_st.y
-                # # print(current_y_st)
-
-                self.clock.tick_busy_loop(self.args.FPS)
-                if self.parse_events(clock=self.clock, action=None):
-                    return
-                    
-                snapshot, image_rgb, image_rgb_vis, lane, collision = self.sync_mode.tick(timeout=10.0)
-                if image_rgb is not None:
-                    img = process_img2(self, image_rgb)
+        last_transform = self.player.get_transform()
+        last_location = last_transform.location
+        self.last_y = last_location.y
 
         return img, {}
 
@@ -281,12 +243,16 @@ class World(gym.Env):
         self.hud.tick(self, clock)
 
     def destroy(self):
-
+        if self.player is not None:
+            self.world.apply_settings(carla.WorldSettings(
+                no_rendering_mode=False,
+                synchronous_mode=False,
+                fixed_delta_seconds=0))
+            
         actors = [
             self.player,
             self.collision_sensor,
             self.camera_rgb,
-            self.camera_rgb_vis,
             self.lane_invasion,
             self.parked_vehicle]
 
@@ -298,7 +264,10 @@ class World(gym.Env):
                            
         for actor in actors:
             if actor is not None:
-                actor.destroy()
+                try:
+                    actor.destroy()
+                except:
+                    pass
 
     def _initiate_visuals(self):
         pygame.init()
@@ -311,20 +280,8 @@ class World(gym.Env):
 
     def step(self, action):
 
+        snapshot, image_rgb, lane, collision = self.synch_mode.tick(timeout=10.0)
 
-        # with CarlaSyncMode(self.world, self.camera_rgb, self.camera_rgb_vis, self.lane_invasion, self.collision_sensor, fps=10) as sync_mode:
-            
-
-        
-        snapshot, image_rgb, image_rgb_vis, lane, collision = self.sync_mode.tick(timeout=10.0)
-
-        
-        # vehicle_location = self.player.get_location()       
-        # waypoint = self.map.get_waypoint(vehicle_location, project_to_road=True, 
-        #             lane_type=carla.LaneType.Driving)
-                
-        # if snapshot is not None:
-        #     print("snapshot 1 ok")
 
         # destroy if there is no data
         if snapshot is None or image_rgb is None:
@@ -333,8 +290,8 @@ class World(gym.Env):
             return None
 
 
-        self.image = process_img2(self,image_rgb)
-        next_state = self.image 
+        image = process_img2(self,image_rgb)
+        next_state = image 
 
         self.reward = 0
         done = 0
@@ -345,37 +302,26 @@ class World(gym.Env):
         stat = 0
         traveled = 0
 
-
-
         if action is not None:
 
             # Advance the simulation and wait for the data.
             state = next_state
             self.counter += 1
             self.global_t += 1
-            # print(self.global_t)
 
-            # clock.tick(5)
+            
             self.clock.tick_busy_loop(self.args.FPS)
-            # pygame.time.dalay(500)
+            
             if self.parse_events(action, self.clock):
                 return
             
-            # self.world.tick(clock)
-            snapshot, image_rgb, image_rgb_vis, lane, collision = self.sync_mode.tick(timeout=10.0)
+            snapshot, image_rgb, lane, collision = self.synch_mode.tick(timeout=10.0)
 
-            # if snapshot is not None:
-            #     print("snapshot 2 ok")
-            
-            # print(waypoint)
-            # print(collision)
-            # print(lane)
-
+           
 
             cos_yaw_diff, dist, collision, lane, stat, traveled = self.get_reward_comp(self.player, self.spawn_waypoint, collision, lane, self.controller.stat)
+            
             self.reward = self.reward_value(cos_yaw_diff, dist, collision, lane, stat, traveled)
-
-            fps = round(1.0 / snapshot.timestamp.delta_seconds)
 
             if self.visuals:
     
@@ -383,14 +329,10 @@ class World(gym.Env):
                 self.render(self.display)
                 pygame.display.flip()
 
-
-
-            # self.cos_list.append(cos_yaw_diff)
-            # self.dist_list.append(dist)
             self.episode_reward += self.reward
             
 
-            self.image = process_img2(self, image_rgb)
+            image = process_img2(self, image_rgb)
             
             done = 1 if collision else 0
 
@@ -398,33 +340,29 @@ class World(gym.Env):
             if dist > self.max_dist:
                 done=1
 
+
             vehicle_location = self.player.get_location()
             y_vh = vehicle_location.y
-
-
-
             if y_vh > float(self.args.spawn_y)+60+15:
                 print("episode ended by reaching goal position")
                 done=True
 
-            truncated = 0
 
-            if self.counter > 5000:
-                truncated = 1
-                print(truncated)
-                
+            truncated = 0
+ 
+
             if collision == 1:
                 print("Episode ended by collision")
             
-            # if lane == 1:
-            #     print("Episode ended by lane invasion")
+            if lane == 1:
+                done = 1
+                print("Episode ended by lane invasion")
     
-
             if dist > self.max_dist:
                 print(f"Episode  ended with dist from waypoint: {dist}")
                 
 
-        return self.image, self.reward, done, truncated, {}
+        return image, self.reward, done, truncated, {}
 
     def get_reward_comp(self, vehicle, waypoint, collision, lane, stat):
         vehicle_location = vehicle.get_location()
@@ -447,7 +385,7 @@ class World(gym.Env):
 
         lane = 0 if lane is None else 1
 
-        traveled = y_vh - float(self.args.spawn_y) -  60
+        traveled = y_vh - self.last_y
         print(traveled)
         
         # print(stat)
@@ -462,9 +400,9 @@ class World(gym.Env):
         
         return cos_yaw_diff, dist, collision, lane, stat, traveled
     
-    def reward_value(self, cos_yaw_diff, dist, collision, lane, stat, traveled, lambda_1=3, lambda_2=5, lambda_3=10, lambda_4=7, lambda_5=0):
+    def reward_value(self, cos_yaw_diff, dist, collision, lane, stat, traveled, lambda_1=1, lambda_2=3, lambda_3=400, lambda_4=100, lambda_5=1):
     
-        reward = (lambda_1 * cos_yaw_diff) - (lambda_2 * dist) - (lambda_3 * collision) - (lambda_4 * lane) + (lambda_5 * stat) + traveled
+        reward = (lambda_1 * cos_yaw_diff) - (lambda_2 * dist) - (lambda_3 * collision) - (lambda_4 * lane) + (lambda_5 * traveled)
         
         return reward
     
