@@ -132,12 +132,12 @@ args.width, args.height = [int(x) for x in args.res.split('x')]
 try:
     client = carla.Client('127.0.0.1', 2000)
     client.set_timeout(100.0)
-    # carla_world = client.load_world(args.map)
+    carla_world = client.load_world(args.map)
     carla_world = client.get_world()
     carla_world.apply_settings(carla.WorldSettings(
             no_rendering_mode=False,
             synchronous_mode=True,
-            fixed_delta_seconds=1/15))
+            fixed_delta_seconds=1/20))
     hud = HUD()
     world = World(client, carla_world, hud, args)
     world.reset()

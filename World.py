@@ -96,10 +96,10 @@ class World(gym.Env):
     def reset(self, seed=None):
 
         self.destroy()
-        self.world.apply_settings(carla.WorldSettings(
-            no_rendering_mode=False,
-            synchronous_mode=True,
-            fixed_delta_seconds=1/self.args.FPS))
+        # self.world.apply_settings(carla.WorldSettings(
+        #     no_rendering_mode=False,
+        #     synchronous_mode=True,
+        #     fixed_delta_seconds=1/self.args.FPS))
         self.episode_reward = 0
 
         if self.visuals:
@@ -205,7 +205,7 @@ class World(gym.Env):
             self.camera_manager.transform_index = cam_pos_index
             self.camera_manager.set_sensor(cam_index, notify=False)
 
-
+          
         while current_speed< self.desired_speed-5:
             
             snapshot, image_rgb, lane, collision = self.synch_mode.tick(timeout=10.0)
@@ -219,7 +219,7 @@ class World(gym.Env):
             current_speed = math.sqrt(velocity_vec_st.x**2 + velocity_vec_st.y**2 + velocity_vec_st.z**2)
 
             snapshot, image_rgb, lane, collision = self.synch_mode.tick(timeout=10.0)
-
+  
             img = process_img2(self, image_rgb)
 
         last_transform = self.player.get_transform()
@@ -243,11 +243,13 @@ class World(gym.Env):
         self.hud.tick(self, clock)
 
     def destroy(self):
-        if self.player is not None:
-            self.world.apply_settings(carla.WorldSettings(
-                no_rendering_mode=False,
-                synchronous_mode=False,
-                fixed_delta_seconds=0))
+        # if self.player is not None:
+        #     self.world.apply_settings(carla.WorldSettings(
+        #         no_rendering_mode=False,
+        #         synchronous_mode=False,
+        #         fixed_delta_seconds=0))
+
+        self.world.tick()
             
         actors = [
             self.player,
@@ -266,6 +268,7 @@ class World(gym.Env):
             if actor is not None:
                 try:
                     actor.destroy()
+                    self.world.tick()
                 except:
                     pass
 
@@ -316,7 +319,7 @@ class World(gym.Env):
                 return
             
             snapshot, image_rgb, lane, collision = self.synch_mode.tick(timeout=10.0)
-
+            
            
 
             cos_yaw_diff, dist, collision, lane, stat, traveled = self.get_reward_comp(self.player, self.spawn_waypoint, collision, lane, self.controller.stat)
@@ -511,7 +514,7 @@ class World(gym.Env):
             spawn_location_r.y = float(z[1])
             spawn_location_r.z = 1.0
             self.world.debug.draw_string(spawn_location_r, 'O', draw_shadow=False,
-                                                color=carla.Color(r=255, g=0, b=0), life_time=1,
+                                                color=carla.Color(r=255, g=0, b=0), life_time=0.3,
                                                 persistent_lines=True)
 
     def get_cubic_spline_path(self, action, current_x, current_y):

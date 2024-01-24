@@ -57,7 +57,7 @@ class CarlaSyncMode(object):
             return data + [lane] + [collision]
         except queue.Empty:
             print("empty queue")
-            return None, None, None, None, None
+            return None, None, None, None
 
 
 
@@ -83,9 +83,8 @@ class CarlaSyncMode(object):
             lane_types = set(x.type for x in data.crossed_lane_markings)
             text = ['%r' % str(x).split()[-1] for x in lane_types]
 
-
             lane = 1 if text[0] == "'Solid'" else None
-            
+  
             return lane
             
         except queue.Empty:

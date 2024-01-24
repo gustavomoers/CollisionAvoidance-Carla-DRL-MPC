@@ -186,7 +186,7 @@ def main():
     argparser.add_argument(
         '--FPS',
         metavar='FPS',
-        default='10',
+        default='15',
         type=int,
         help='Frame per second for simulation')
 
