@@ -81,7 +81,7 @@ class World(gym.Env):
 
 
         ## RL STABLE BASELINES
-        self.action_space = spaces.Box(low=-1, high=1,shape=(6,),dtype="float32")
+        self.action_space = spaces.Box(low=-1, high=1,shape=(3,),dtype="float32")
         self.observation_space = spaces.Box(low=-0, high=255, shape=(128, 128, 1), dtype=np.uint8)
 
 
@@ -96,10 +96,10 @@ class World(gym.Env):
     def reset(self, seed=None):
 
         self.destroy()
-        # self.world.apply_settings(carla.WorldSettings(
-        #     no_rendering_mode=False,
-        #     synchronous_mode=True,
-        #     fixed_delta_seconds=1/self.args.FPS))
+        self.world.apply_settings(carla.WorldSettings(
+            no_rendering_mode=False,
+            synchronous_mode=True,
+            fixed_delta_seconds=1/self.args.FPS))
         self.episode_reward = 0
 
         if self.visuals:
@@ -205,8 +205,12 @@ class World(gym.Env):
             self.camera_manager.transform_index = cam_pos_index
             self.camera_manager.set_sensor(cam_index, notify=False)
 
-          
-        while current_speed< self.desired_speed-5:
+        parked_position = self.parked_vehicle.get_transform().location.y
+        player_position = self.player.get_transform().location.y
+
+
+
+        while player_position < parked_position-15:
             
             snapshot, image_rgb, lane, collision = self.synch_mode.tick(timeout=10.0)
 
@@ -218,6 +222,10 @@ class World(gym.Env):
             velocity_vec_st = self.player.get_velocity()
             current_speed = math.sqrt(velocity_vec_st.x**2 + velocity_vec_st.y**2 + velocity_vec_st.z**2)
 
+            parked_position = self.parked_vehicle.get_transform().location.y
+            player_position = self.player.get_transform().location.y
+
+
             snapshot, image_rgb, lane, collision = self.synch_mode.tick(timeout=10.0)
   
             img = process_img2(self, image_rgb)
@@ -225,6 +233,7 @@ class World(gym.Env):
         last_transform = self.player.get_transform()
         last_location = last_transform.location
         self.last_y = last_location.y
+        print(current_speed)
 
         return img, {}
 
@@ -389,8 +398,8 @@ class World(gym.Env):
         lane = 0 if lane is None else 1
 
         traveled = y_vh - self.last_y
-        print(traveled)
-        
+        # print(traveled)
+ 
         # print(stat)
         if stat is None:
             stat = 0
@@ -403,7 +412,7 @@ class World(gym.Env):
         
         return cos_yaw_diff, dist, collision, lane, stat, traveled
     
-    def reward_value(self, cos_yaw_diff, dist, collision, lane, stat, traveled, lambda_1=1, lambda_2=3, lambda_3=400, lambda_4=100, lambda_5=1):
+    def reward_value(self, cos_yaw_diff, dist, collision, lane, stat, traveled, lambda_1=1, lambda_2=1, lambda_3=100, lambda_4=5, lambda_5=0.5):
     
         reward = (lambda_1 * cos_yaw_diff) - (lambda_2 * dist) - (lambda_3 * collision) - (lambda_4 * lane) + (lambda_5 * traveled)
         
@@ -518,14 +527,22 @@ class World(gym.Env):
                                                 persistent_lines=True)
 
     def get_cubic_spline_path(self, action, current_x, current_y):
+        print(current_x)
         x0 = (max(self.x_values_RL)-min(self.x_values_RL))*((action[0]+1)/2)+min(self.x_values_RL)+current_x
-        y0 = (max(self.y_values_RL)-min(self.y_values_RL))*((action[1]+1)/2)+min(self.y_values_RL)+current_y
-       
-        x1 = (max(self.x_values_RL)-min(self.x_values_RL))*((action[2]+1)/2)+min(self.x_values_RL)+current_x
-        y1 = (max(self.y_values_RL)-min(self.y_values_RL))*((action[3]+1)/2)+min(self.y_values_RL)+y0
+        # y0 = (max(self.y_values_RL)-min(self.y_values_RL))*((action[1]+1)/2)+min(self.y_values_RL)+current_y
+        y0 = current_y + self.waypoint_lookahead_distance
+        print(x0)
 
-        x2 = (max(self.x_values_RL)-min(self.x_values_RL))*((action[4]+1)/2)+min(self.x_values_RL)+current_x
-        y2 = (max(self.y_values_RL)-min(self.y_values_RL))*((action[5]+1)/2)+min(self.y_values_RL)+y1
+       
+        x1 = (max(self.x_values_RL)-min(self.x_values_RL))*((action[1]+1)/2)+min(self.x_values_RL)+current_x
+        # y1 = (max(self.y_values_RL)-min(self.y_values_RL))*((action[3]+1)/2)+min(self.y_values_RL)+y0
+        y1 = y0 + self.waypoint_lookahead_distance
+        print(x1)
+
+        x2 = (max(self.x_values_RL)-min(self.x_values_RL))*((action[2]+1)/2)+min(self.x_values_RL)+current_x
+        # y2 = (max(self.y_values_RL)-min(self.y_values_RL))*((action[5]+1)/2)+min(self.y_values_RL)+y1
+        y2 = y1 + self.waypoint_lookahead_distance
+        print(x2)
 
         x= [current_x, x0, x1, x2]
         y = [current_y, y0, y1, y2]

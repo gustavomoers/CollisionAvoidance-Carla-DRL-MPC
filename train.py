@@ -34,10 +34,10 @@ def game_loop(args):
         hud = HUD()
         # carla_world = client.load_world(args.map)
         carla_world = client.get_world()
-        # carla_world.apply_settings(carla.WorldSettings(
-        #     no_rendering_mode=False,
-        #     synchronous_mode=True,
-        #     fixed_delta_seconds=1/args.FPS))
+        carla_world.apply_settings(carla.WorldSettings(
+            no_rendering_mode=False,
+            synchronous_mode=True,
+            fixed_delta_seconds=1/args.FPS))
         world = World(client, carla_world, hud, args)
         world = Monitor(world, logdir)
         world.reset()
@@ -186,7 +186,7 @@ def main():
     argparser.add_argument(
         '--FPS',
         metavar='FPS',
-        default='15',
+        default='20',
         type=int,
         help='Frame per second for simulation')
 

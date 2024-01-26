@@ -8,7 +8,7 @@ from stable_baselines3 import PPO #PPO
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.evaluation import evaluate_policy
 
-run = '1706057961'
+run = '1706146108'
 logdir = f"logs/{run}/evaluation"
 
 if not os.path.exists(logdir):
@@ -26,7 +26,7 @@ def game_loop(args):
 
 
         hud = HUD(args.width, args.height)
-        # carla_world = client.load_world(args.map)
+        carla_world = client.load_world(args.map)
         carla_world = client.get_world()
         carla_world.apply_settings(carla.WorldSettings(
             no_rendering_mode=False,
@@ -38,7 +38,7 @@ def game_loop(args):
 
         model = PPO.load(f"F:/CollisionAvoidance-Carla-DRL-MPC/logs/{run}/best_model.zip", env=world, print_system_info=True)
 
-        mean_reward, std_reward = evaluate_policy(model, model.get_env(), n_eval_episodes=10)
+        mean_reward, std_reward = evaluate_policy(model, model.get_env(), n_eval_episodes=100)
 
 
         vec_env = model.get_env()
@@ -187,7 +187,7 @@ def main():
     argparser.add_argument(
         '--FPS',
         metavar='FPS',
-        default='10',
+        default='20',
         type=int,
         help='Frame per second for simulation')
 

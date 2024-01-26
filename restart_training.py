@@ -14,7 +14,7 @@ from stable_baselines3.common.logger import configure
 from stable_baselines3.common.callbacks import CheckpointCallback
 
 
-run = '1706057961'
+run = '1706146108'
 logdir = f"logs/{run}"
 
 
@@ -27,8 +27,12 @@ def game_loop(args):
         client = carla.Client(args.host, args.port)
         client.set_timeout(100.0)
         hud = HUD()
-        # carla_world = client.load_world(args.map)
+        carla_world = client.load_world(args.map)
         carla_world = client.get_world()
+        carla_world.apply_settings(carla.WorldSettings(
+            no_rendering_mode=False,
+            synchronous_mode=True,
+            fixed_delta_seconds=1/args.FPS))
         world = World(client, carla_world, hud, args)
         world = Monitor(world, logdir)
         world.reset()
@@ -48,7 +52,7 @@ def game_loop(args):
        
 
         TIMESTEPS = 500000 # how long is each training iteration - individual steps
-        model.learn(total_timesteps=TIMESTEPS, reset_num_timesteps=False, tb_log_name=f"PPO", progress_bar=True, 
+        model.learn(total_timesteps=TIMESTEPS, tb_log_name=f"PPO1", progress_bar=True, 
                         callback = CallbackList([tensor, save_callback])) 
                 
     finally:
@@ -181,7 +185,7 @@ def main():
     argparser.add_argument(
         '--FPS',
         metavar='FPS',
-        default='15',
+        default='20',
         type=int,
         help='Frame per second for simulation')
 
