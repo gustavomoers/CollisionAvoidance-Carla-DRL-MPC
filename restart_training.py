@@ -52,7 +52,7 @@ def game_loop(args):
        
 
         TIMESTEPS = 500000 # how long is each training iteration - individual steps
-        model.learn(total_timesteps=TIMESTEPS, tb_log_name=f"PPO1", progress_bar=True, 
+        model.learn(total_timesteps=TIMESTEPS, tb_log_name=f"PPO1", progress_bar=True, reset_num_timesteps=False, 
                         callback = CallbackList([tensor, save_callback])) 
                 
     finally:

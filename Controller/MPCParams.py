@@ -39,5 +39,5 @@ class MPCParams:
     
     v_min = -1
     
-    v_max = 80
+    v_max = 150
 
