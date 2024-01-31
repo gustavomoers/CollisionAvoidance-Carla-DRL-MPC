@@ -163,8 +163,8 @@ def main():
         help='waypoint look ahead distance for control')
     argparser.add_argument(
         '--desired_speed',
-        metavar='SPEED',
-        default='60',
+        metavar='SPEED', 
+        default='20',
         type=float,
         help='desired speed for highway driving')
     argparser.add_argument(
@@ -176,18 +176,18 @@ def main():
         '--planning_horizon',
         metavar='HORIZON',
         type=int,
-        default='3',
+        default='6',
         help='Planning horizon for MPC')
     argparser.add_argument(
         '--time_step',
         metavar='DT',
-        default='0.15',
+        default='0.1',
         type=float,
         help='Planning time step for MPC')
     argparser.add_argument(
         '--FPS',
         metavar='FPS',
-        default='20',
+        default='15',
         type=int,
         help='Frame per second for simulation')
 

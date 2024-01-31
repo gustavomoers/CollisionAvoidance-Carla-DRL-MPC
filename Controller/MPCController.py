@@ -5,7 +5,7 @@
 """
 import numpy as np
 from matplotlib import pyplot as plt
-from Controller.MPC import MPC
+from Controller.MPC1 import MPC
 from Controller.LongitudinalPID import LongitudinalPID
 from Controller.MPCParams import MPCParams
 
@@ -108,9 +108,11 @@ class Controller(object):
     def set_steer(self, input_steer_in_rad):
         # Covnert radians to [-1, 1]
         input_steer = self._conv_rad_to_steer * input_steer_in_rad
+        print(f"input steer: {input_steer}")
 
         # Clamp the steering command to valid bounds
         steer = np.fmax(np.fmin(input_steer, 1.0), -1.0)
+        print(f" steer: {steer}")
         self._set_steer = steer
 
     def set_brake(self, input_brake):
@@ -147,7 +149,7 @@ class Controller(object):
             throttle_output = 0.0
             brake_output = acceleration / MPCParams.a_min  
         # throttle_output = acceleration / MPCParams.a_max + 0.3
-        # print(f"Control input , throttle : {throttle_output}, steer outout : {steer_output}, brake : {brake_output}, acceleration : {acceleration}")
+        print(f"Control input , throttle : {throttle_output}, steer outout : {steer_output}, brake : {brake_output}, acceleration : {acceleration}")
         self.set_throttle(throttle_output)  # in percent (0 to 1)
         self.set_steer(steer_output)        # in rad (-1.22 to 1.22)
         self.set_brake(brake_output)        # in percent (0 to 1)

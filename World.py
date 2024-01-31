@@ -69,7 +69,7 @@ class World(gym.Env):
         self._steer_cache = 0.0
         self.max_dist = 4.5
         self.y_values_RL =np.array([self.waypoint_lookahead_distance, 2 * self.waypoint_lookahead_distance])
-        self.x_values_RL = np.array([-3, 3])
+        self.x_values_RL = np.array([3.5, 4.5])
         # self.yaw_values_RL = np.array([self.max_dist, 2.5])
         self.counter = 0
         self.frame = None
@@ -78,7 +78,7 @@ class World(gym.Env):
         self._settings = None
         self.collisions = []
         self.last_y = 0
-        self.distance_parked = 150
+        self.distance_parked = 60
 
 
         ## RL STABLE BASELINES
@@ -165,9 +165,9 @@ class World(gym.Env):
     
         # creating parked vehicles
 
-        parking_position = carla.Transform(self.player.get_transform().location + carla.Location(-0.5, self.distance_parked, 0.5), 
-                             carla.Rotation(0,90,0))
-        self.parked_vehicle = self.world.spawn_actor(self.vehicle_blueprint.filter('model3')[0], parking_position)
+        # parking_position = carla.Transform(self.player.get_transform().location + carla.Location(-0.5, self.distance_parked, 0.5), 
+        #                      carla.Rotation(0,90,0))
+        # self.parked_vehicle = self.world.spawn_actor(self.vehicle_blueprint.filter('model3')[0], parking_position)
         
         self.world.tick()
 
@@ -213,7 +213,7 @@ class World(gym.Env):
             self.camera_manager.transform_index = cam_pos_index
             self.camera_manager.set_sensor(cam_index, notify=False)
 
-        parked_position = self.parked_vehicle.get_transform().location.y
+        # parked_position = self.parked_vehicle.get_transform().location.y
         player_position = self.player.get_transform().location.y
 
                    
@@ -223,7 +223,7 @@ class World(gym.Env):
                         (self.args.width, self.args.height),
                         pygame.HWSURFACE | pygame.DOUBLEBUF)
         
-        while player_position < parked_position - 35:
+        while current_speed < 25: #player_position < parked_position - 15:
             
             snapshot, image_rgb, lane, collision = self.synch_mode.tick(timeout=10.0)
 
@@ -236,7 +236,7 @@ class World(gym.Env):
             current_speed = math.sqrt(velocity_vec_st.x**2 + velocity_vec_st.y**2 + velocity_vec_st.z**2)
             print(current_speed)
 
-            parked_position = self.parked_vehicle.get_transform().location.y
+            # parked_position = self.parked_vehicle.get_transform().location.y
             player_position = self.player.get_transform().location.y
 
             
@@ -316,7 +316,7 @@ class World(gym.Env):
 
         snapshot, image_rgb, lane, collision = self.synch_mode.tick(timeout=10.0)           
         
-        self.desired_speed = 1
+        self.desired_speed = -1
 
         # destroy if there is no data
         if snapshot is None or image_rgb is None:
@@ -551,7 +551,7 @@ class World(gym.Env):
 
     def get_cubic_spline_path(self, action, current_x, current_y):
         # print(current_x)
-        x0 = (max(self.x_values_RL)-min(self.x_values_RL))*((action[0]+1)/2)+min(self.x_values_RL)+current_x
+        x0 = current_x+3 #+(max(self.x_values_RL)-min(self.x_values_RL))*((action[0]+1)/2)+min(self.x_values_RL)
         # y0 = (max(self.y_values_RL)-min(self.y_values_RL))*((action[1]+1)/2)+min(self.y_values_RL)+current_y
         y0 = current_y + self.waypoint_lookahead_distance
         # print(x0)
@@ -562,15 +562,16 @@ class World(gym.Env):
         y1 = y0 + self.waypoint_lookahead_distance
         # print(x1)
 
-        x2 = (max(self.x_values_RL)-min(self.x_values_RL))*((action[2]+1)/2)+min(self.x_values_RL)+current_x
+        x2 = current_x +(max(self.x_values_RL)-min(self.x_values_RL))*((action[2]+1)/2)+min(self.x_values_RL)
         # y2 = (max(self.y_values_RL)-min(self.y_values_RL))*((action[5]+1)/2)+min(self.y_values_RL)+y1
         y2 = y1 + self.waypoint_lookahead_distance
         # print(x2)
 
-        x= [current_x, x0, x1, x2]
-        y = [current_y, y0, y1, y2]
+        x= [current_x , x0, x1, x2]
+        print(x)
+        y = [current_y+2, y0, y1, y2]
 
-        ds = 2.5  # [m] distance of each interpolated points
+        ds = 1  # [m] distance of each interpolated points
         sp = CubicSpline2D(x, y)
 
         s = np.arange(0, sp.s[-1], ds)

@@ -27,17 +27,17 @@ class MPCParams:
     len_horizon = 10
 
     # Constrains
-    max_steering_angle = 1.0
+    max_steering_angle = 1
 
-    a_max = 5
+    a_max = 1
 
-    a_min = -0.01
+    a_min = -1.5
     
-    a_rate_max = 1
+    a_rate_max = 1.5
     
-    steer_rate_max = 0.5
+    steer_rate_max = 0.3
     
     v_min = -1
     
-    v_max = 150
+    v_max = 100
 
