@@ -26,7 +26,7 @@ def game_loop(args):
 
 
         hud = HUD(args.width, args.height)
-        carla_world = client.load_world(args.map)
+        # carla_world = client.load_world(args.map)
         carla_world = client.get_world()
         carla_world.apply_settings(carla.WorldSettings(
             no_rendering_mode=False,
@@ -152,7 +152,7 @@ def main():
     argparser.add_argument(
         '--waypoint_resolution',
         metavar='WR',
-        default='0.5',
+        default='1',
         type=float,
         help='waypoint resulution for control')
     argparser.add_argument(
@@ -164,7 +164,7 @@ def main():
     argparser.add_argument(
         '--desired_speed',
         metavar='SPEED',
-        default='13.89',
+        default='15',
         type=float,
         help='desired speed for highway driving')
     argparser.add_argument(
@@ -176,18 +176,18 @@ def main():
         '--planning_horizon',
         metavar='HORIZON',
         type=int,
-        default='3',
+        default='5',
         help='Planning horizon for MPC')
     argparser.add_argument(
         '--time_step',
         metavar='DT',
-        default='0.4',
+        default='0.15',
         type=float,
         help='Planning time step for MPC')
     argparser.add_argument(
         '--FPS',
         metavar='FPS',
-        default='20',
+        default='15',
         type=int,
         help='Frame per second for simulation')
 
