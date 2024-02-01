@@ -11,6 +11,9 @@ import numpy as np
 import casadi as cd
 import matplotlib.pyplot as plt
 
+from Utils.CubicSpline.cubic_spline_planner import *
+
+
 
 # Parameters
 T = 0.1 #sampling time 0.1s
@@ -32,7 +35,7 @@ controls = cd.vertcat(acceleration,steering)
 n_controls = 2  #no of control variables or manipulated variables
 
 #bounds on mv
-max_acc = 1 # in m/s^2 ub for acc
+max_acc = 2 # in m/s^2 ub for acc
 min_acc = -1.5 # lb for acc
 max_acc_rate = 1.5 # in m/s^3 ub
 min_acc_rate = -3 # lb
@@ -115,7 +118,27 @@ def get_ref_traj(type):
             # yaw[i] = -pi/2
             x[i+1] = x[i] + v[i]*cos(yaw[i])*T
             y[i+1] = y[i] + v[i]*sin(yaw[i])*T
-    return np.array([x,y,yaw,v])
+        return np.array([x,y,yaw,v])
+    
+    elif type == 'B':
+        x = np.array([-17, -19.92, -21, -25, -20, -17])
+        y =np.array([-223, -220.06, -200.059, -170.059, -160, -150])
+        ds = 1  # [m] distance of each interpolated points
+        sp = CubicSpline2D(x, y)
+        s = np.arange(0, sp.s[-1], ds)
+        rx, ry, ryaw, rk = [], [], [], []
+        for i_s in s:
+            ix, iy = sp.calc_position(i_s)
+            rx.append(ix)
+            ry.append(iy)
+            ryaw.append(sp.calc_yaw(i_s))
+            rk.append(sp.calc_curvature(i_s))
+        nw_wp = []
+        for i in range(len(rx)):
+            nw_wp.append([rx[i], ry[i], 10, ryaw[i]])
+        z_ref = np.array(nw_wp).T
+
+        return z_ref
 
 
 
@@ -139,7 +162,7 @@ DAE = {"x":states,"p":controls,"ode":Estimator(states,controls)}
 # DAE.ode = Estimator(states,controls)
 intg = cd.integrator("intg","rk",DAE,intg_options)
 # print(intg)
-res = intg(states,controls,[],[],[],[],[])
+res = intg(states,controls,[],[],[],[])
 States_nxt = res[0]
 Estimator = cd.Function("Estimator",[states,controls],[States_nxt])
 
@@ -231,7 +254,7 @@ print(States_log.shape)
 z_ref = get_ref_traj("A")
 States_log = States_log.T
 control_log = control_log.T
-fig , axes = plt.subplots(4,1,figsize=(10,15))
+fig , axes = plt.subplots(5,1,figsize=(10,15))
 axes[0].plot(list(range(0,799,1)),States_log[3][list(range(0,799,1))])
 axes[0].set_title("Velocity tracking")
 axes[0].set(ylim=(0,7))
@@ -263,10 +286,10 @@ axes[3].set_title("position error")
 axes[3].plot(list(range(0,799,1)),np.mean(position_error)*np.ones((799,)),"--")
 axes[3].legend(["Position Error","average"])
 
-# axes[4].plot(States_log[0][list(range(0,799,1))],States_log[1][list(range(0,799,1))])
-# axes[4].set_title("x vs y")
-# axes[4].plot(z_ref[0],z_ref[1],"--")
-# axes[4].legend(["actual","reference"])
+axes[4].plot(States_log[0][list(range(0,799,1))],States_log[1][list(range(0,799,1))])
+axes[4].set_title("x vs y")
+axes[4].plot(z_ref[0],z_ref[1],"--")
+axes[4].legend(["actual","reference"])
 fig.savefig("KONG.png")
 print("Mean:",np.mean(position_error))
 print("Standard deviation",np.std(position_error))
