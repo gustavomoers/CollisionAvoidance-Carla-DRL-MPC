@@ -32,7 +32,7 @@ def game_loop(args):
         client = carla.Client(args.host, args.port)
         client.set_timeout(100.0)
         hud = HUD()
-        # carla_world = client.load_world(args.map)
+        carla_world = client.load_world(args.map)
         carla_world = client.get_world()
         carla_world.apply_settings(carla.WorldSettings(
             no_rendering_mode=False,
@@ -41,10 +41,10 @@ def game_loop(args):
         world = World(client, carla_world, hud, args)
         world = Monitor(world, logdir)
         world.reset()
-        model = PPO('CnnPolicy', world, verbose=2, learning_rate=0.0003, n_steps=640, n_epochs=30, batch_size=32, ent_coef=0.01,
+        model = PPO('MlpPolicy', world, verbose=2, learning_rate=0.0003, n_steps=640, n_epochs=30, batch_size=32, ent_coef=0.01,
                      tensorboard_log=logdir) # tensorboard_log=logdir
         # Create Callback
-        save_callback = SaveOnBestTrainingRewardCallback(check_freq=1000, log_dir=logdir, verbose=1) 
+        save_callback = SaveOnBestTrainingRewardCallback(check_freq=100, log_dir=logdir, verbose=1) 
         tensor = TensorboardCallback()  
         # logger = HParamCallback()
         # printer = MeticLogger()
@@ -163,7 +163,7 @@ def main():
     argparser.add_argument(
         '--desired_speed',
         metavar='SPEED',
-        default='13.89',
+        default='15',
         type=float,
         help='desired speed for highway driving')
     argparser.add_argument(
@@ -175,12 +175,12 @@ def main():
         '--planning_horizon',
         metavar='HORIZON',
         type=int,
-        default='3',
+        default='5',
         help='Planning horizon for MPC')
     argparser.add_argument(
         '--time_step',
         metavar='DT',
-        default='0.4',
+        default='0.15',
         type=float,
         help='Planning time step for MPC')
     argparser.add_argument(

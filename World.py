@@ -70,6 +70,7 @@ class World(gym.Env):
         self.max_dist = 4.5
         self.y_values_RL =np.array([self.waypoint_lookahead_distance, 2 * self.waypoint_lookahead_distance])
         self.x_values_RL = np.array([-3.5, 3.5])
+        self.v_values_RL = np.array([0, 16])
         # self.yaw_values_RL = np.array([self.max_dist, 2.5])
         self.counter = 0
         self.frame = None
@@ -79,11 +80,11 @@ class World(gym.Env):
         self.collisions = []
         self.last_y = 0
         self.distance_parked = 35
-
+        self.prev_action = np.array([0, 0, 0])
 
         ## RL STABLE BASELINES
         self.action_space = spaces.Box(low=-1, high=1,shape=(3,),dtype="float32")
-        self.observation_space = spaces.Box(low=-0, high=255, shape=(128, 128, 1), dtype=np.uint8)
+        self.observation_space = spaces.Box(low=-1, high=1, shape=(8,), dtype="float64")
 
 
         self.visuals = visuals
@@ -250,7 +251,7 @@ class World(gym.Env):
 
             snapshot, image_rgb, lane, collision = self.synch_mode.tick(timeout=10.0)
   
-            img = process_img2(self, image_rgb)
+            # img = process_img2(self, image_rgb)
 
         last_transform = self.player.get_transform()
         last_location = last_transform.location
@@ -258,11 +259,12 @@ class World(gym.Env):
 
 
         obs = self.get_observation()
+        obs = np.array(np.append(obs, self.prev_action))
 
         # print(obs)
 
 
-        return img, {}
+        return obs, {}
 
     def render(self, display):
         self.camera_manager.render(display)
@@ -329,11 +331,11 @@ class World(gym.Env):
             return None
 
 
-        image = process_img2(self,image_rgb)
-        next_state = image 
+        # image = process_img2(self,image_rgb)
+        # next_state = image 
 
         self.reward = 0
-        done = 0
+        done = False
         cos_yaw_diff = 0
         dist = 0
         collision = 0
@@ -344,7 +346,7 @@ class World(gym.Env):
         if action is not None:
 
             # Advance the simulation and wait for the data.
-            state = next_state
+            # state = next_state
             self.counter += 1
             self.global_t += 1
 
@@ -354,16 +356,26 @@ class World(gym.Env):
             if self.parse_events(action, self.clock):
                 return
             
+            
+            
             snapshot, image_rgb, lane, collision = self.synch_mode.tick(timeout=10.0)
             
             obs = self.get_observation()
 
-            # print(obs)
+            obs = np.array(np.append(obs, self.prev_action))
+            # print(f'obs shape: {obs.shape}')
+            # print(f'prev action: {self.prev_action}')
+
+            self.prev_action = []
+            self.prev_action.append(action)
+            # print(f'new action: {self.prev_action}')
+            # print(f'real obs: {obs}')
            
 
             cos_yaw_diff, dist, collision, lane, stat, traveled = self.get_reward_comp(self.player, self.spawn_waypoint, collision, lane, self.controller.stat)
             
             self.reward = self.reward_value(cos_yaw_diff, dist, collision, lane, stat, traveled)
+            # print(f'rew: {self.reward}')
 
             if self.visuals:
     
@@ -374,13 +386,13 @@ class World(gym.Env):
             self.episode_reward += self.reward
             
 
-            image = process_img2(self, image_rgb)
+            # image = process_img2(self, image_rgb)
             
-            done = 1 if collision else 0
+            done = True if collision else False
 
             
             if dist > self.max_dist:
-                done=1
+                done=True
 
 
             vehicle_location = self.player.get_location()
@@ -390,21 +402,21 @@ class World(gym.Env):
                 done=True
 
 
-            truncated = 0
+            truncated = False
  
 
             if collision == 1:
                 print("Episode ended by collision")
             
             if lane == 1:
-                done = 1
+                done = True
                 print("Episode ended by lane invasion")
     
             if dist > self.max_dist:
                 print(f"Episode  ended with dist from waypoint: {dist}")
                 
 
-        return image, self.reward, done, truncated, {}
+        return obs, self.reward, done, truncated, {}
 
     def get_reward_comp(self, vehicle, waypoint, collision, lane, stat):
         vehicle_location = vehicle.get_location()
@@ -434,6 +446,7 @@ class World(gym.Env):
         if stat is None:
             stat = 0
         elif stat == "infeasible":
+            print(stat)
             stat = -1
         elif stat == "optimal":
             stat = 1
@@ -565,12 +578,12 @@ class World(gym.Env):
         # print(x0)
 
        
-        x1 = (max(self.x_values_RL)-min(self.x_values_RL))*((action[1]+1)/2)+min(self.x_values_RL)+current_x
+        x1 = (max(self.x_values_RL)-min(self.x_values_RL))*((action[0]+1)/2)+min(self.x_values_RL)+current_x
         # y1 = (max(self.y_values_RL)-min(self.y_values_RL))*((action[3]+1)/2)+min(self.y_values_RL)+y0
         y1 = y0 + self.waypoint_lookahead_distance
         # print(x1)
 
-        x2 = current_x +(max(self.x_values_RL)-min(self.x_values_RL))*((action[2]+1)/2)+min(self.x_values_RL)
+        x2 = current_x +(max(self.x_values_RL)-min(self.x_values_RL))*((action[1]+1)/2)+min(self.x_values_RL)
         # y2 = (max(self.y_values_RL)-min(self.y_values_RL))*((action[5]+1)/2)+min(self.y_values_RL)+y1
         y2 = y1 + self.waypoint_lookahead_distance
         # print(x2)
@@ -590,11 +603,20 @@ class World(gym.Env):
             ry.append(iy)
             ryaw.append(sp.calc_yaw(i_s))
 
-        road_desired_speed = self.desired_speed
+
+        desired_speed = (max(self.v_values_RL)-min(self.v_values_RL))*((action[2]+1)/2)+min(self.v_values_RL)
+        velocity_vec = self.player.get_velocity()
+        current_speed = math.sqrt(velocity_vec.x**2 + velocity_vec.y**2 + velocity_vec.z**2)
+        num_steps= len(rx)
+
+        speed_profile = [current_speed + (i / num_steps) * (desired_speed - current_speed) for i in range(num_steps + 1)]
+
 
         nw_wp = []
         for i in range(len(rx)):
-            nw_wp.append([rx[i], ry[i], road_desired_speed, ryaw[i]])
+            nw_wp.append([rx[i], ry[i], speed_profile[i], ryaw[i]])
+
+        # print(nw_wp)
 
         return nw_wp
     
@@ -627,18 +649,18 @@ class World(gym.Env):
         y_dist = current_y -parked_y
 
         obs = [x_dist, y_dist, current_speed, current_acceleration, current_yaw]
-        print(obs)
+        # print(obs)
 
         # Example observation data
         data = np.array([x_dist, y_dist, current_speed, current_acceleration, current_yaw])
 
         # Clipping the data
         clipped_data = np.clip(data, min_values, max_values)
-        print(clipped_data)
+        # print(clipped_data)
 
         # Normalize the data to the range [-1, 1]
-        normalized_data = 2 * ((data - min_values) / (max_values - min_values)) - 1
-        print(normalized_data)
+        normalized_data = 2 * ((clipped_data - min_values) / (max_values - min_values)) - 1
+        # print(normalized_data)
 
-        return obs
+        return normalized_data
 

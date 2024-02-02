@@ -31,7 +31,7 @@ def game_loop(args):
         carla_world.apply_settings(carla.WorldSettings(
             no_rendering_mode=False,
             synchronous_mode=True,
-            fixed_delta_seconds=1/20))
+            fixed_delta_seconds=1/args.FPS))
         world = World(client, carla_world, hud, args, visuals=False)
         world = Monitor(world, logdir)
         world.reset()

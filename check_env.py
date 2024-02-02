@@ -91,13 +91,13 @@ argparser.add_argument(
 argparser.add_argument(
     '--waypoint_lookahead_distance',
     metavar='WLD',
-    default='6',
+    default='5',
     type=float,
     help='waypoint look ahead distance for control')
 argparser.add_argument(
     '--desired_speed',
     metavar='SPEED',
-    default='10',
+    default='15',
     type=float,
     help='desired speed for highway driving')
 argparser.add_argument(
@@ -109,12 +109,12 @@ argparser.add_argument(
     '--planning_horizon',
     metavar='HORIZON',
     type=int,
-    default='3',
+    default='5',
     help='Planning horizon for MPC')
 argparser.add_argument(
     '--time_step',
     metavar='DT',
-    default='0.4',
+    default='0.1',
     type=float,
     help='Planning time step for MPC')
 argparser.add_argument(
@@ -132,7 +132,7 @@ args.width, args.height = [int(x) for x in args.res.split('x')]
 try:
     client = carla.Client('127.0.0.1', 2000)
     client.set_timeout(100.0)
-    carla_world = client.load_world(args.map)
+    # carla_world = client.load_world(args.map)
     carla_world = client.get_world()
     carla_world.apply_settings(carla.WorldSettings(
             no_rendering_mode=False,
@@ -140,9 +140,10 @@ try:
             fixed_delta_seconds=1/20))
     hud = HUD()
     world = World(client, carla_world, hud, args)
-    world.reset()
+    check_env(world)
+    # world.reset()
 
-    world.destroy()
+    # world.destroy()
 
 
 
