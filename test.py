@@ -8,7 +8,7 @@ from stable_baselines3 import PPO #PPO
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.evaluation import evaluate_policy
 
-run = '1706146108'
+run = '1706814212'
 logdir = f"logs/{run}/evaluation"
 
 if not os.path.exists(logdir):
@@ -187,7 +187,7 @@ def main():
     argparser.add_argument(
         '--FPS',
         metavar='FPS',
-        default='15',
+        default='20',
         type=int,
         help='Frame per second for simulation')
 
