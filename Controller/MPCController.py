@@ -27,6 +27,7 @@ class Controller(object):
         self._waypoints = waypoints
         self.stat = None
         self._acceleration = 0
+        self._steer = 0
         self._conv_rad_to_steer = 180.0 / 35.0 / np.pi
         self.controller = MPC(  x = self._current_x, y = self._current_y, yaw = self._current_yaw, v = self._current_speed, delta = 0,
                                 lf = lf, lr = lr ,L = wheelbase, Q = MPCParams.Q, R = MPCParams.R, Qf = MPCParams.Qf, Rd = MPCParams.Rd, len_horizon = planning_horizon,
@@ -137,6 +138,7 @@ class Controller(object):
                 self.controller.get_inputs(x, y, yaw, v, np.array(self._waypoints).T)
             
             self._acceleration = acceleration
+            self._steer = steer_output
 
             ######################################################
             # SET CONTROLS OUTPUT

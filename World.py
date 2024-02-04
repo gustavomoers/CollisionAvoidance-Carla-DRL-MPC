@@ -12,6 +12,7 @@ from gymnasium import spaces
 from Utils.HUD_visuals import *
 import random
 from Utils.CubicSpline.cubic_spline_planner import *
+import csv
 
 
 
@@ -70,7 +71,7 @@ class World(gym.Env):
         self.max_dist = 4.5
         self.y_values_RL =np.array([self.waypoint_lookahead_distance, 2 * self.waypoint_lookahead_distance])
         self.x_values_RL = np.array([-3.5, 3.5])
-        self.v_values_RL = np.array([0, 16])
+        self.v_values_RL = np.array([0, 80])
         # self.yaw_values_RL = np.array([self.max_dist, 2.5])
         self.counter = 0
         self.frame = None
@@ -79,8 +80,13 @@ class World(gym.Env):
         self._settings = None
         self.collisions = []
         self.last_y = 0
-        self.distance_parked = 35
+        self.distance_parked = 80
         self.prev_action = np.array([0, 0, 0])
+        self.realease_position = 15
+        self.ttc_trigger = 1.5
+        self.episode_counter = 0
+        self.save_list = []
+        self.file_name = 'F:/CollisionAvoidance-Carla-DRL-MPC/logs/1706814212/evaluation/35m_14ms_15mRelease/logger.csv'
 
         ## RL STABLE BASELINES
         self.action_space = spaces.Box(low=-1, high=1,shape=(3,),dtype="float32")
@@ -94,6 +100,11 @@ class World(gym.Env):
         self.global_t = 0 # global timestep
 
 
+    def append_to_csv(self,file_name, data):
+        with open(file_name, 'a', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(data)
+
 
     def reset(self, seed=None):
 
@@ -104,6 +115,10 @@ class World(gym.Env):
             fixed_delta_seconds=1/self.args.FPS))
         self.episode_reward = 0
         self.desired_speed = self.args.desired_speed
+
+        self.episode_counter += 1
+        self.append_to_csv(file_name=self.file_name, data=self.save_list)
+        self.save_list = []
 
         if self.visuals:
             # Keep same camera config if the camera manager exists.
@@ -190,6 +205,7 @@ class World(gym.Env):
             # print("Control: PID")
         elif self.control_mode == "MPC":
             physic_control = self.player.get_physics_control()
+            physic_control.use_sweep_wheel_collision = True
             # print("Control: MPC")
             lf, lr, l = get_vehicle_wheelbases(physic_control.wheels, physic_control.center_of_mass )
             self.controller = MPCController.Controller(lf = lf, lr = lr, wheelbase=l, planning_horizon = self.planning_horizon, time_step = self.time_step)
@@ -223,8 +239,10 @@ class World(gym.Env):
             self.display = pygame.display.set_mode(
                         (self.args.width, self.args.height),
                         pygame.HWSURFACE | pygame.DOUBLEBUF)
-        
-        while player_position < parked_position - 15: #player_position < parked_position - 15:
+            
+        ttc = self.time_to_collison()
+
+        while ttc > self.ttc_trigger: #player_position < parked_position - self.realease_position:
             
             snapshot, image_rgb, lane, collision = self.synch_mode.tick(timeout=10.0)
 
@@ -235,10 +253,14 @@ class World(gym.Env):
             
             velocity_vec_st = self.player.get_velocity()
             current_speed = math.sqrt(velocity_vec_st.x**2 + velocity_vec_st.y**2 + velocity_vec_st.z**2)
-            # print(current_speed)
+
+
 
             parked_position = self.parked_vehicle.get_transform().location.y
             player_position = self.player.get_transform().location.y
+
+            ttc = self.time_to_collison()
+            print(f'ttc: {ttc}')
 
             
             if self.visuals:
@@ -256,12 +278,15 @@ class World(gym.Env):
         last_transform = self.player.get_transform()
         last_location = last_transform.location
         self.last_y = last_location.y
+        print(current_speed)
 
 
         obs = self.get_observation()
         obs = np.array(np.append(obs, self.prev_action))
 
         # print(obs)
+        print(f'last ttc: {ttc}')
+        print(parked_position - player_position)
 
 
         return obs, {}
@@ -622,12 +647,13 @@ class World(gym.Env):
     
     def get_observation(self):
 
+
         # Example min and max values
         # min_values = [min_x_dist, min_y_dist, min_speed, min_acceleration, min_yaw]
         # max_values = [max_x_dist, max_y_dist, max_speed, max_acceleration, max_yaw]
 
         min_values = np.array([-6, -15, 0, -1.5, -3.14])
-        max_values = np.array([6, 15, 20, 2, 3.14])
+        max_values = np.array([6, 15, 80, 2, 3.14])
 
          # EGO information
         velocity_vec = self.player.get_velocity()
@@ -639,6 +665,7 @@ class World(gym.Env):
         current_yaw = wrap_angle(current_roration.yaw)
         current_speed = math.sqrt(velocity_vec.x**2 + velocity_vec.y**2 + velocity_vec.z**2)
         current_acceleration = self.controller._acceleration
+        current_steer = self.controller._steer
         #Parked vehicle information
         parked_transform = self.parked_vehicle.get_transform()
         parked_location = parked_transform.location
@@ -662,5 +689,34 @@ class World(gym.Env):
         normalized_data = 2 * ((clipped_data - min_values) / (max_values - min_values)) - 1
         # print(normalized_data)
 
+
+        self.save_list.append([self.episode_counter, current_x, current_y, x_dist, y_dist, current_speed, current_acceleration, current_yaw, current_steer])
+
+
         return normalized_data
 
+    def time_to_collison(self):
+
+         # EGO information
+        velocity_vec = self.player.get_velocity()
+        current_transform = self.player.get_transform()
+        current_location = current_transform.location
+        current_x = current_location.x
+        current_y = current_location.y
+        current_speed = math.sqrt(velocity_vec.x**2 + velocity_vec.y**2 + velocity_vec.z**2)
+       
+
+        #Parked vehicle information
+        parked_transform = self.parked_vehicle.get_transform()
+        velocity_parked = self.parked_vehicle.get_velocity()
+        parked_location = parked_transform.location
+        parked_x = parked_location.x
+        parked_y = parked_location.y
+        parked_speed = math.sqrt(velocity_parked.x**2 + velocity_parked.y**2 + velocity_parked.z**2)
+
+        dist = np.sqrt((parked_y-current_y)**2 + (current_x-parked_x)**2)
+        rel_speed = current_speed - parked_speed
+
+        ttc = dist/rel_speed
+
+        return np.abs(ttc)

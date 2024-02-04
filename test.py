@@ -9,7 +9,7 @@ from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.evaluation import evaluate_policy
 
 run = '1706814212'
-logdir = f"logs/{run}/evaluation"
+logdir = f"logs/{run}/evaluation/"
 
 if not os.path.exists(logdir):
 	os.makedirs(logdir)
@@ -152,7 +152,7 @@ def main():
     argparser.add_argument(
         '--waypoint_resolution',
         metavar='WR',
-        default='1',
+        default='0.5',
         type=float,
         help='waypoint resulution for control')
     argparser.add_argument(
@@ -163,8 +163,8 @@ def main():
         help='waypoint look ahead distance for control')
     argparser.add_argument(
         '--desired_speed',
-        metavar='SPEED',
-        default='15',
+        metavar='SPEED', 
+        default='25',
         type=float,
         help='desired speed for highway driving')
     argparser.add_argument(
@@ -187,7 +187,7 @@ def main():
     argparser.add_argument(
         '--FPS',
         metavar='FPS',
-        default='20',
+        default='15',
         type=int,
         help='Frame per second for simulation')
 
