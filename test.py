@@ -152,7 +152,7 @@ def main():
     argparser.add_argument(
         '--waypoint_resolution',
         metavar='WR',
-        default='0.5',
+        default='1',
         type=float,
         help='waypoint resulution for control')
     argparser.add_argument(

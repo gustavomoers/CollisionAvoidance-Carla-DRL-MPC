@@ -71,7 +71,7 @@ class World(gym.Env):
         self.max_dist = 4.5
         self.y_values_RL =np.array([self.waypoint_lookahead_distance, 2 * self.waypoint_lookahead_distance])
         self.x_values_RL = np.array([-3.5, 3.5])
-        self.v_values_RL = np.array([0, 80])
+        self.v_values_RL = np.array([0, 40])
         # self.yaw_values_RL = np.array([self.max_dist, 2.5])
         self.counter = 0
         self.frame = None
@@ -207,8 +207,20 @@ class World(gym.Env):
             physic_control = self.player.get_physics_control()
             physic_control.use_sweep_wheel_collision = True
             # print("Control: MPC")
+
+            # Create Wheels Physics Control
+            front_left_wheel  = carla.WheelPhysicsControl(max_steer_angle=35.0)
+            front_right_wheel = carla.WheelPhysicsControl(max_steer_angle=35.0)
+            rear_left_wheel   = carla.WheelPhysicsControl()
+            rear_right_wheel  = carla.WheelPhysicsControl()
+
+            wheels = [front_left_wheel, front_right_wheel, rear_left_wheel, rear_right_wheel]
+            physic_control.wheels = wheels
+            self.player.apply_physics_control(physic_control)
+
             lf, lr, l = get_vehicle_wheelbases(physic_control.wheels, physic_control.center_of_mass )
             self.controller = MPCController.Controller(lf = lf, lr = lr, wheelbase=l, planning_horizon = self.planning_horizon, time_step = self.time_step)
+
         velocity_vec = self.player.get_velocity()
         current_transform = self.player.get_transform()
         current_location = current_transform.location
