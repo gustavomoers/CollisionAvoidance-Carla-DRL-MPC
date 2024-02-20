@@ -85,7 +85,7 @@ argparser.add_argument(
 argparser.add_argument(
     '--waypoint_resolution',
     metavar='WR',
-    default='3',
+    default='1',
     type=float,
     help='waypoint resulution for control')
 argparser.add_argument(
@@ -97,7 +97,7 @@ argparser.add_argument(
 argparser.add_argument(
     '--desired_speed',
     metavar='SPEED',
-    default='15',
+    default='25',
     type=float,
     help='desired speed for highway driving')
 argparser.add_argument(
@@ -114,13 +114,13 @@ argparser.add_argument(
 argparser.add_argument(
     '--time_step',
     metavar='DT',
-    default='0.1',
+    default='0.15',
     type=float,
     help='Planning time step for MPC')
 argparser.add_argument(
     '--FPS',
     metavar='FPS',
-    default='10',
+    default='30',
     type=int,
     help='Frame per second for simulation')
 
@@ -137,7 +137,7 @@ try:
     carla_world.apply_settings(carla.WorldSettings(
             no_rendering_mode=False,
             synchronous_mode=True,
-            fixed_delta_seconds=1/20))
+            fixed_delta_seconds=1/30))
     hud = HUD()
     world = World(client, carla_world, hud, args)
     check_env(world)

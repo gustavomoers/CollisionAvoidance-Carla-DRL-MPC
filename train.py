@@ -32,7 +32,7 @@ def game_loop(args):
         client = carla.Client(args.host, args.port)
         client.set_timeout(100.0)
         hud = HUD()
-        carla_world = client.load_world(args.map)
+        # carla_world = client.load_world(args.map)
         carla_world = client.get_world()
         carla_world.apply_settings(carla.WorldSettings(
             no_rendering_mode=False,

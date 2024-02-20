@@ -46,15 +46,21 @@ class CarlaSyncMode(object):
     
     def tick(self, timeout):
         try:
+            
             self.frame = self.world.tick()
             data = [self._retrieve_data(q, timeout) for q in self._queues[:-2]]
             # collision sensor is the last element in the queue
             lane = self._detect_lane(self._queues[-2])
             collision = self._detect_collision(self._queues[-1])
-            
-            assert all(x.frame == self.frame for x in data)
 
-            return data + [lane] + [collision]
+            
+            data.append(lane)
+            data.append(collision)
+            
+            assert all(x.frame == self.frame for x in data if x is not None)
+            # print(data)
+
+            return data
         except queue.Empty:
             print("empty queue")
             return None, None, None, None
@@ -80,12 +86,12 @@ class CarlaSyncMode(object):
     def _detect_lane(self, sensor):
         try:
             data = sensor.get(block=False)
-            lane_types = set(x.type for x in data.crossed_lane_markings)
-            text = ['%r' % str(x).split()[-1] for x in lane_types]
+            # lane_types = set(x.type for x in data.crossed_lane_markings)
+            # text = ['%r' % str(x).split()[-1] for x in lane_types]
 
-            lane = 1 if text[0] == "'Solid'" else None
+            # lane = 1 if text[0] == "'Solid'" else None
   
-            return lane
+            return data
             
         except queue.Empty:
             return None

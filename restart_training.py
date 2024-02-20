@@ -14,7 +14,7 @@ from stable_baselines3.common.logger import configure
 from stable_baselines3.common.callbacks import CheckpointCallback
 
 
-run = '1706146108'
+run = '1708371265'
 logdir = f"logs/{run}"
 
 
@@ -27,7 +27,7 @@ def game_loop(args):
         client = carla.Client(args.host, args.port)
         client.set_timeout(100.0)
         hud = HUD()
-        carla_world = client.load_world(args.map)
+        # carla_world = client.load_world(args.map)
         carla_world = client.get_world()
         carla_world.apply_settings(carla.WorldSettings(
             no_rendering_mode=False,
@@ -43,7 +43,7 @@ def game_loop(args):
     
 
         # Create Callback
-        save_callback = SaveOnBestTrainingRewardCallback(check_freq=1000, log_dir=logdir, verbose=1) 
+        save_callback = SaveOnBestTrainingRewardCallback(check_freq=100, log_dir=logdir, verbose=1) 
         tensor = TensorboardCallback()  
         # logger = HParamCallback()
         # printer = MeticLogger()
@@ -53,7 +53,7 @@ def game_loop(args):
 
         TIMESTEPS = 500000 # how long is each training iteration - individual steps
         model.learn(total_timesteps=TIMESTEPS, tb_log_name=f"PPO1", progress_bar=True, 
-                        callback = CallbackList([tensor, save_callback])) 
+                        callback = CallbackList([tensor, save_callback]), reset_num_timesteps=False) 
                 
     finally:
 
@@ -150,7 +150,7 @@ def main():
     argparser.add_argument(
         '--waypoint_resolution',
         metavar='WR',
-        default='0.5',
+        default='1',
         type=float,
         help='waypoint resulution for control')
     argparser.add_argument(
@@ -162,7 +162,7 @@ def main():
     argparser.add_argument(
         '--desired_speed',
         metavar='SPEED',
-        default='13.89',
+        default='25',
         type=float,
         help='desired speed for highway driving')
     argparser.add_argument(
@@ -174,12 +174,12 @@ def main():
         '--planning_horizon',
         metavar='HORIZON',
         type=int,
-        default='3',
+        default='5',
         help='Planning horizon for MPC')
     argparser.add_argument(
         '--time_step',
         metavar='DT',
-        default='0.4',
+        default='0.15',
         type=float,
         help='Planning time step for MPC')
     argparser.add_argument(

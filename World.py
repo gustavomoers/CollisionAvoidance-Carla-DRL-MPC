@@ -72,6 +72,8 @@ class World(gym.Env):
         self.y_values_RL =np.array([self.waypoint_lookahead_distance, 2 * self.waypoint_lookahead_distance])
         self.x_values_RL = np.array([-3.5, 3.5])
         self.v_values_RL = np.array([0, 40])
+        self.min_values_obs = np.array([-6, -15, 0, -1.5, -3.14])
+        self.max_values_obs = np.array([6, 15, 40, 2, 3.14])
         # self.yaw_values_RL = np.array([self.max_dist, 2.5])
         self.counter = 0
         self.frame = None
@@ -83,10 +85,10 @@ class World(gym.Env):
         self.distance_parked = 80
         self.prev_action = np.array([0, 0, 0])
         self.realease_position = 15
-        self.ttc_trigger = 1.5
+        self.ttc_trigger = 1.1
         self.episode_counter = 0
         self.save_list = []
-        self.file_name = 'F:/CollisionAvoidance-Carla-DRL-MPC/logs/1706814212/evaluation/35m_14ms_15mRelease/logger.csv'
+        # self.file_name = 'F:/CollisionAvoidance-Carla-DRL-MPC/logs/1706814212/evaluation/35m_14ms_15mRelease/logger.csv'
 
         ## RL STABLE BASELINES
         self.action_space = spaces.Box(low=-1, high=1,shape=(3,),dtype="float32")
@@ -117,7 +119,7 @@ class World(gym.Env):
         self.desired_speed = self.args.desired_speed
 
         self.episode_counter += 1
-        self.append_to_csv(file_name=self.file_name, data=self.save_list)
+        # self.append_to_csv(file_name=self.file_name, data=self.save_list)
         self.save_list = []
 
         if self.visuals:
@@ -209,14 +211,14 @@ class World(gym.Env):
             # print("Control: MPC")
 
             # Create Wheels Physics Control
-            front_left_wheel  = carla.WheelPhysicsControl(max_steer_angle=35.0)
-            front_right_wheel = carla.WheelPhysicsControl(max_steer_angle=35.0)
-            rear_left_wheel   = carla.WheelPhysicsControl()
-            rear_right_wheel  = carla.WheelPhysicsControl()
+            # front_left_wheel  = carla.WheelPhysicsControl(max_steer_angle=35.0)
+            # front_right_wheel = carla.WheelPhysicsControl(max_steer_angle=35.0)
+            # rear_left_wheel   = carla.WheelPhysicsControl()
+            # rear_right_wheel  = carla.WheelPhysicsControl()
 
-            wheels = [front_left_wheel, front_right_wheel, rear_left_wheel, rear_right_wheel]
-            physic_control.wheels = wheels
-            self.player.apply_physics_control(physic_control)
+            # wheels = [front_left_wheel, front_right_wheel, rear_left_wheel, rear_right_wheel]
+            # physic_control.wheels = wheels
+            # self.player.apply_physics_control(physic_control)
 
             lf, lr, l = get_vehicle_wheelbases(physic_control.wheels, physic_control.center_of_mass )
             self.controller = MPCController.Controller(lf = lf, lr = lr, wheelbase=l, planning_horizon = self.planning_horizon, time_step = self.time_step)
@@ -245,6 +247,7 @@ class World(gym.Env):
         parked_position = self.parked_vehicle.get_transform().location.y
         player_position = self.player.get_transform().location.y
 
+        self.world.tick()
                    
         self.clock = pygame.time.Clock()
         if self.visuals:  
@@ -272,7 +275,7 @@ class World(gym.Env):
             player_position = self.player.get_transform().location.y
 
             ttc = self.time_to_collison()
-            print(f'ttc: {ttc}')
+            # print(f'ttc: {ttc}')
 
             
             if self.visuals:
@@ -290,15 +293,15 @@ class World(gym.Env):
         last_transform = self.player.get_transform()
         last_location = last_transform.location
         self.last_y = last_location.y
-        print(current_speed)
+        # print(current_speed)
 
 
         obs = self.get_observation()
         obs = np.array(np.append(obs, self.prev_action))
 
         # print(obs)
-        print(f'last ttc: {ttc}')
-        print(parked_position - player_position)
+        # print(f'last ttc: {ttc}')
+        # print(parked_position - player_position)
 
 
         return obs, {}
@@ -358,14 +361,14 @@ class World(gym.Env):
 
     def step(self, action):
 
-        snapshot, image_rgb, lane, collision = self.synch_mode.tick(timeout=10.0)           
+        # snapshot, image_rgb, lane, collision = self.synch_mode.tick(timeout=10.0)           
         
-        # self.desired_speed = 0
-        # destroy if there is no data
-        if snapshot is None or image_rgb is None:
-            print("No data, skipping episode")
-            # self.reset()
-            return None
+        # # self.desired_speed = 0
+        # # destroy if there is no data
+        # if snapshot is None or image_rgb is None:
+        #     print("No data, skipping episode")
+        #     # self.reset()
+        #     return None
 
 
         # image = process_img2(self,image_rgb)
@@ -397,6 +400,7 @@ class World(gym.Env):
             
             snapshot, image_rgb, lane, collision = self.synch_mode.tick(timeout=10.0)
             
+            
             obs = self.get_observation()
 
             obs = np.array(np.append(obs, self.prev_action))
@@ -410,6 +414,7 @@ class World(gym.Env):
            
 
             cos_yaw_diff, dist, collision, lane, stat, traveled = self.get_reward_comp(self.player, self.spawn_waypoint, collision, lane, self.controller.stat)
+            
             
             self.reward = self.reward_value(cos_yaw_diff, dist, collision, lane, stat, traveled)
             # print(f'rew: {self.reward}')
@@ -443,6 +448,7 @@ class World(gym.Env):
  
 
             if collision == 1:
+                done=True
                 print("Episode ended by collision")
             
             if lane == 1:
@@ -450,6 +456,7 @@ class World(gym.Env):
                 print("Episode ended by lane invasion")
     
             if dist > self.max_dist:
+                done=True
                 print(f"Episode  ended with dist from waypoint: {dist}")
                 
 
@@ -474,7 +481,15 @@ class World(gym.Env):
 
         collision = 0 if collision is None else 1
 
-        lane = 0 if lane is None else 1
+        if lane is not None:
+            lane_types = set(x.type for x in lane.crossed_lane_markings)
+            text = ['%r' % str(x).split()[-1] for x in lane_types]
+            lane = 1 if text[0] == "'Solid'" else 0
+        
+        elif lane is None:
+            lane=0
+
+        # lane = 0 if lane is None else 1
 
         traveled = y_vh - self.last_y
         # print(traveled)
@@ -664,8 +679,8 @@ class World(gym.Env):
         # min_values = [min_x_dist, min_y_dist, min_speed, min_acceleration, min_yaw]
         # max_values = [max_x_dist, max_y_dist, max_speed, max_acceleration, max_yaw]
 
-        min_values = np.array([-6, -15, 0, -1.5, -3.14])
-        max_values = np.array([6, 15, 80, 2, 3.14])
+        min_values = self.min_values_obs #np.array([-6, -15, 0, -1.5, -3.14])
+        max_values = self.max_values_obs #np.array([6, 15, 40, 2, 3.14])
 
          # EGO information
         velocity_vec = self.player.get_velocity()
