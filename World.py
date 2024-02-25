@@ -85,10 +85,12 @@ class World(gym.Env):
         self.distance_parked = 80
         self.prev_action = np.array([0, 0, 0])
         self.realease_position = 15
-        self.ttc_trigger = 1.1
+        self.ttc_trigger = 0.8
         self.episode_counter = 0
+        self.last_v = 0
         self.save_list = []
-        # self.file_name = 'F:/CollisionAvoidance-Carla-DRL-MPC/logs/1706814212/evaluation/35m_14ms_15mRelease/logger.csv'
+        self.file_name = 'F:/CollisionAvoidance-Carla-DRL-MPC/logs/1708371265/evaluation/80m_21.9ms_1.1ttc/logger.csv'
+        self.logger = True
 
         ## RL STABLE BASELINES
         self.action_space = spaces.Box(low=-1, high=1,shape=(3,),dtype="float32")
@@ -119,7 +121,9 @@ class World(gym.Env):
         self.desired_speed = self.args.desired_speed
 
         self.episode_counter += 1
-        # self.append_to_csv(file_name=self.file_name, data=self.save_list)
+
+        if self.logger:
+            self.append_to_csv(file_name=self.file_name, data=self.save_list)
         self.save_list = []
 
         if self.visuals:
@@ -287,17 +291,20 @@ class World(gym.Env):
 
 
             snapshot, image_rgb, lane, collision = self.synch_mode.tick(timeout=10.0)
+
+            obs = self.get_observation()
+            obs = np.array(np.append(obs, self.prev_action))
   
             # img = process_img2(self, image_rgb)
 
         last_transform = self.player.get_transform()
         last_location = last_transform.location
         self.last_y = last_location.y
-        # print(current_speed)
+        self.last_v = current_speed
+        print(current_speed)
 
 
-        obs = self.get_observation()
-        obs = np.array(np.append(obs, self.prev_action))
+        
 
         # print(obs)
         # print(f'last ttc: {ttc}')
@@ -716,8 +723,14 @@ class World(gym.Env):
         normalized_data = 2 * ((clipped_data - min_values) / (max_values - min_values)) - 1
         # print(normalized_data)
 
+        acceleration_vec =  self.player.get_acceleration()
+        sideslip = np.tanh(velocity_vec.x/np.abs(velocity_vec.y))
 
-        self.save_list.append([self.episode_counter, current_x, current_y, x_dist, y_dist, current_speed, current_acceleration, current_yaw, current_steer])
+        # print(self.player.get_telemetry_data())
+
+
+        self.save_list.append([self.episode_counter,  self.desired_speed, self.last_v, self.ttc_trigger, self.distance_parked, self.clock.get_time(), current_x, current_y, x_dist, y_dist, current_speed, current_acceleration, 
+                               acceleration_vec.x, acceleration_vec.y, sideslip, current_yaw, current_steer])
 
 
         return normalized_data

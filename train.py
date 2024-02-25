@@ -13,11 +13,8 @@ from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.logger import configure
 from stable_baselines3.common.callbacks import CheckpointCallback
 
-models_dir = f"models/{int(time.time())}/"
 logdir = f"logs/{int(time.time())}/"
 
-if not os.path.exists(models_dir):
-	os.makedirs(models_dir)
 
 if not os.path.exists(logdir):
 	os.makedirs(logdir)
