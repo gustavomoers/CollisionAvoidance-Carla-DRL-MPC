@@ -41,17 +41,17 @@ def game_loop(args):
         model = PPO('MlpPolicy', world, verbose=2, learning_rate=0.0003, n_steps=640, n_epochs=30, batch_size=32, ent_coef=0.01,
                      tensorboard_log=logdir) # tensorboard_log=logdir
         # Create Callback
-        save_callback = SaveOnBestTrainingRewardCallback(check_freq=100, log_dir=logdir, verbose=1) 
+        save_callback = SaveOnBestTrainingRewardCallback(check_freq=500, log_dir=logdir, verbose=1) 
         tensor = TensorboardCallback()  
         # logger = HParamCallback()
         # printer = MeticLogger()
         # plotter = PlottingCallback(log_dir=logdir)
-        # checkpoint = CheckpointCallback(save_freq=500, save_path=models_dir)
+        checkpoint = CheckpointCallback(save_freq=500, save_path=logdir, verbose=1)
        
 
         TIMESTEPS = 500000 # how long is each training iteration - individual steps
         model.learn(total_timesteps=TIMESTEPS, reset_num_timesteps=False, tb_log_name=f"PPO", progress_bar=True, 
-                        callback = CallbackList([tensor, save_callback])) 
+                        callback = CallbackList([tensor, save_callback, checkpoint])) 
                 
     finally:
 
@@ -160,7 +160,7 @@ def main():
     argparser.add_argument(
         '--desired_speed',
         metavar='SPEED',
-        default='25',
+        default='15',
         type=float,
         help='desired speed for highway driving')
     argparser.add_argument(
@@ -177,13 +177,13 @@ def main():
     argparser.add_argument(
         '--time_step',
         metavar='DT',
-        default='0.15',
+        default='0.2',
         type=float,
         help='Planning time step for MPC')
     argparser.add_argument(
         '--FPS',
         metavar='FPS',
-        default='20',
+        default='15',
         type=int,
         help='Frame per second for simulation')
 

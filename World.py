@@ -9,7 +9,6 @@ import math
 import gym
 import gymnasium as gym
 from gymnasium import spaces
-from Utils.HUD_visuals import *
 import random
 from Utils.CubicSpline.cubic_spline_planner import *
 import csv
@@ -28,7 +27,6 @@ class World(gym.Env):
         self.lane_invasion_sensor = None
         self.gnss_sensor = None
         self.camera_manager = None
-        self._weather_presets = find_weather_presets()
         self._weather_index = 0
         self._actor_filter = "vehicle.*"
         self._gamma = args.gamma
@@ -52,8 +50,6 @@ class World(gym.Env):
         self.episode_start = 0
         self.visuals = visuals
         self.episode_reward = 0
-        self.cos_list = []
-        self.dist_list = []
         self.SHOW_CAM = True
         self.player = None
         self.parked_vehicle = None
@@ -69,12 +65,11 @@ class World(gym.Env):
         self._control = carla.VehicleControl()
         self._steer_cache = 0.0
         self.max_dist = 4.5
-        self.y_values_RL =np.array([self.waypoint_lookahead_distance, 2 * self.waypoint_lookahead_distance])
+        self.y_values_RL =np.array([5, 10])
         self.x_values_RL = np.array([-3.5, 3.5])
         self.v_values_RL = np.array([0, 40])
         self.min_values_obs = np.array([-6, -15, 0, -1.5, -3.14])
         self.max_values_obs = np.array([6, 15, 40, 2, 3.14])
-        # self.yaw_values_RL = np.array([self.max_dist, 2.5])
         self.counter = 0
         self.frame = None
         self.delta_seconds = 1.0 / args.FPS
@@ -82,19 +77,18 @@ class World(gym.Env):
         self._settings = None
         self.collisions = []
         self.last_y = 0
-        self.distance_parked = 80
-        self.prev_action = np.array([0, 0, 0])
-        self.realease_position = 15
+        self.distance_parked = 35
+        self.prev_action = np.array([0, 0, 0, 0, 0])
         self.ttc_trigger = 0.8
         self.episode_counter = 0
         self.last_v = 0
         self.save_list = []
         self.file_name = 'F:/CollisionAvoidance-Carla-DRL-MPC/logs/1708371265/evaluation/80m_21.9ms_1.1ttc/logger.csv'
-        self.logger = True
+        self.logger = False
 
         ## RL STABLE BASELINES
-        self.action_space = spaces.Box(low=-1, high=1,shape=(3,),dtype="float32")
-        self.observation_space = spaces.Box(low=-1, high=1, shape=(8,), dtype="float64")
+        self.action_space = spaces.Box(low=-1, high=1,shape=(5,),dtype="float32")
+        self.observation_space = spaces.Box(low=-1, high=1, shape=(10,), dtype="float64")
 
 
         self.visuals = visuals
@@ -212,17 +206,7 @@ class World(gym.Env):
         elif self.control_mode == "MPC":
             physic_control = self.player.get_physics_control()
             physic_control.use_sweep_wheel_collision = True
-            # print("Control: MPC")
 
-            # Create Wheels Physics Control
-            # front_left_wheel  = carla.WheelPhysicsControl(max_steer_angle=35.0)
-            # front_right_wheel = carla.WheelPhysicsControl(max_steer_angle=35.0)
-            # rear_left_wheel   = carla.WheelPhysicsControl()
-            # rear_right_wheel  = carla.WheelPhysicsControl()
-
-            # wheels = [front_left_wheel, front_right_wheel, rear_left_wheel, rear_right_wheel]
-            # physic_control.wheels = wheels
-            # self.player.apply_physics_control(physic_control)
 
             lf, lr, l = get_vehicle_wheelbases(physic_control.wheels, physic_control.center_of_mass )
             self.controller = MPCController.Controller(lf = lf, lr = lr, wheelbase=l, planning_horizon = self.planning_horizon, time_step = self.time_step)
@@ -240,30 +224,17 @@ class World(gym.Env):
         self.episode_start = time.time()
 
         
-        if self.visuals:
-            self.collision_sensor_hud = CollisionSensor(self.player, self.hud)
-            self.lane_invasion_sensor = LaneInvasionSensor(self.player, self.hud)
-            self.gnss_sensor = GnssSensor(self.player)
-            self.camera_manager = CameraManager(self.player, self.hud, self._gamma)
-            self.camera_manager.transform_index = cam_pos_index
-            self.camera_manager.set_sensor(cam_index, notify=False)
-
-        parked_position = self.parked_vehicle.get_transform().location.y
-        player_position = self.player.get_transform().location.y
 
         self.world.tick()
                    
         self.clock = pygame.time.Clock()
-        if self.visuals:  
-            self.display = pygame.display.set_mode(
-                        (self.args.width, self.args.height),
-                        pygame.HWSURFACE | pygame.DOUBLEBUF)
+
             
         ttc = self.time_to_collison()
 
         while ttc > self.ttc_trigger: #player_position < parked_position - self.realease_position:
             
-            snapshot, image_rgb, lane, collision = self.synch_mode.tick(timeout=10.0)
+            # snapshot, image_rgb, lane, collision = self.synch_mode.tick(timeout=10.0)
 
             self.clock.tick_busy_loop(self.args.FPS)
 
@@ -274,20 +245,8 @@ class World(gym.Env):
             current_speed = math.sqrt(velocity_vec_st.x**2 + velocity_vec_st.y**2 + velocity_vec_st.z**2)
 
 
-
-            parked_position = self.parked_vehicle.get_transform().location.y
-            player_position = self.player.get_transform().location.y
-
             ttc = self.time_to_collison()
             # print(f'ttc: {ttc}')
-
-            
-            if self.visuals:
-    
-                self.tick(self.clock)
-                self.render(self.display)
-                self.world.tick()
-                pygame.display.flip()
 
 
             snapshot, image_rgb, lane, collision = self.synch_mode.tick(timeout=10.0)
@@ -304,35 +263,14 @@ class World(gym.Env):
         print(current_speed)
 
 
-        
-
-        # print(obs)
-        # print(f'last ttc: {ttc}')
-        # print(parked_position - player_position)
-
-
         return obs, {}
 
-    def render(self, display):
-        self.camera_manager.render(display)
-        self.hud.render(display)
 
-    def next_weather(self, reverse=False):
-        self._weather_index += -1 if reverse else 1
-        self._weather_index %= len(self._weather_presets)
-        preset = self._weather_presets[self._weather_index]
-        self.hud.notification('Weather: %s' % preset[1])
-        self.player.get_world().set_weather(preset[0])
 
     def tick(self, clock):
         self.hud.tick(self, clock)
 
     def destroy(self):
-        # if self.player is not None:
-        #     self.world.apply_settings(carla.WorldSettings(
-        #         no_rendering_mode=False,
-        #         synchronous_mode=False,
-        #         fixed_delta_seconds=0))
 
         self.world.tick()
             
@@ -357,29 +295,10 @@ class World(gym.Env):
                 except:
                     pass
 
-    def _initiate_visuals(self):
-        pygame.init()
 
-        self.display = pygame.display.set_mode(
-            (800, 600),
-            pygame.HWSURFACE | pygame.DOUBLEBUF)
-        self.font = get_font()
-        self.clock = pygame.time.Clock()
 
     def step(self, action):
 
-        # snapshot, image_rgb, lane, collision = self.synch_mode.tick(timeout=10.0)           
-        
-        # # self.desired_speed = 0
-        # # destroy if there is no data
-        # if snapshot is None or image_rgb is None:
-        #     print("No data, skipping episode")
-        #     # self.reset()
-        #     return None
-
-
-        # image = process_img2(self,image_rgb)
-        # next_state = image 
 
         self.reward = 0
         done = False
@@ -392,8 +311,6 @@ class World(gym.Env):
 
         if action is not None:
 
-            # Advance the simulation and wait for the data.
-            # state = next_state
             self.counter += 1
             self.global_t += 1
 
@@ -411,35 +328,19 @@ class World(gym.Env):
             obs = self.get_observation()
 
             obs = np.array(np.append(obs, self.prev_action))
-            # print(f'obs shape: {obs.shape}')
-            # print(f'prev action: {self.prev_action}')
-
             self.prev_action = []
             self.prev_action.append(action)
-            # print(f'new action: {self.prev_action}')
-            # print(f'real obs: {obs}')
-           
+
 
             cos_yaw_diff, dist, collision, lane, stat, traveled = self.get_reward_comp(self.player, self.spawn_waypoint, collision, lane, self.controller.stat)
             
             
             self.reward = self.reward_value(cos_yaw_diff, dist, collision, lane, stat, traveled)
-            # print(f'rew: {self.reward}')
-
-            if self.visuals:
-    
-                self.tick(self.clock)
-                self.render(self.display)
-                pygame.display.flip()
+ 
 
             self.episode_reward += self.reward
-            
 
-            # image = process_img2(self, image_rgb)
-            
-            done = True if collision else False
 
-            
             if dist > self.max_dist:
                 done=True
 
@@ -465,9 +366,18 @@ class World(gym.Env):
             if dist > self.max_dist:
                 done=True
                 print(f"Episode  ended with dist from waypoint: {dist}")
+
+
+            velocity_vec_st = self.player.get_velocity()
+            current_speed = math.sqrt(velocity_vec_st.x**2 + velocity_vec_st.y**2 + velocity_vec_st.z**2)
+            if current_speed < 0.1:
+                print("Episode ended by stopping")
+                done=True
                 
 
         return obs, self.reward, done, truncated, {}
+    
+
 
     def get_reward_comp(self, vehicle, waypoint, collision, lane, stat):
         vehicle_location = vehicle.get_location()
@@ -587,36 +497,7 @@ class World(gym.Env):
                 self.control_count += 1
             # world.player.set_transform(current_waypoint.transform)
  
-    def get_waypoints_RL(self, action, current_x, current_y):
-        x0 = (max(self.x_values_RL)-min(self.x_values_RL))*((action[0]+1)/2)+min(self.x_values_RL)+current_x
-        y0 = (max(self.y_values_RL)-min(self.y_values_RL))*((action[1]+1)/2)+min(self.y_values_RL)+current_y
-        location0 = carla.Location()
-        location0.x = x0
-        location0.y = y0
-        yaw0 = wrap_angle(self.map.get_waypoint(location0).transform.rotation.yaw)
-        # yaw0 = (max(self.yaw_values_RL)-min(self.yaw_values_RL))*((action[2]+1)/2)+min(self.yaw_values_RL)
 
-        x1 = (max(self.x_values_RL)-min(self.x_values_RL))*((action[2]+1)/2)+min(self.x_values_RL)+current_x
-        y1 = (max(self.y_values_RL)-min(self.y_values_RL))*((action[3]+1)/2)+min(self.y_values_RL)+y0
-        location1 = carla.Location()
-        location1.x = x1
-        location1.y = y1
-        yaw1 = wrap_angle(self.map.get_waypoint(location1).transform.rotation.yaw)
-        # yaw1 = (max(self.yaw_values_RL)-min(self.yaw_values_RL))*((action[5]+1)/2)+min(self.yaw_values_RL)
-
-        x2 = (max(self.x_values_RL)-min(self.x_values_RL))*((action[4]+1)/2)+min(self.x_values_RL)+current_x
-        y2 = (max(self.y_values_RL)-min(self.y_values_RL))*((action[5]+1)/2)+min(self.y_values_RL)+y1
-        location2 = carla.Location()
-        location2.x = x2
-        location2.y = y2
-        yaw2 = wrap_angle(self.map.get_waypoint(location2).transform.rotation.yaw)
-        # yaw2 = (max(self.yaw_values_RL)-min(self.yaw_values_RL))*((action[8]+1)/2)+min(self.yaw_values_RL)
-
-        road_desired_speed = self.desired_speed
-        waypoints_RL = [[x0, y0, road_desired_speed, yaw0], [x1, y1, road_desired_speed, yaw1], [x2, y2, road_desired_speed, yaw2]]
-        # print(f'wp RL: {waypoints_RL}')
-
-        return waypoints_RL
     
     def print_waypoints(self, waypoints):
 
@@ -629,22 +510,23 @@ class World(gym.Env):
                                                 color=carla.Color(r=255, g=0, b=0), life_time=0.3,
                                                 persistent_lines=True)
 
+
     def get_cubic_spline_path(self, action, current_x, current_y):
         # print(current_x)
         # x0 = current_x +(max(self.x_values_RL)-min(self.x_values_RL))*((action[0]+1)/2)+min(self.x_values_RL)
         # y0 = (max(self.y_values_RL)-min(self.y_values_RL))*((action[1]+1)/2)+min(self.y_values_RL)+current_y
-        y0 = current_y + self.waypoint_lookahead_distance
+        y0 = current_y 
         # print(x0)
 
        
         x1 = (max(self.x_values_RL)-min(self.x_values_RL))*((action[0]+1)/2)+min(self.x_values_RL)+current_x
-        # y1 = (max(self.y_values_RL)-min(self.y_values_RL))*((action[3]+1)/2)+min(self.y_values_RL)+y0
-        y1 = y0 + self.waypoint_lookahead_distance
+        y1 = (max(self.y_values_RL)-min(self.y_values_RL))*((action[1]+1)/2)+min(self.y_values_RL)+y0
+        # y1 = y0 + self.waypoint_lookahead_distance
         # print(x1)
 
-        x2 = current_x +(max(self.x_values_RL)-min(self.x_values_RL))*((action[1]+1)/2)+min(self.x_values_RL)
-        # y2 = (max(self.y_values_RL)-min(self.y_values_RL))*((action[5]+1)/2)+min(self.y_values_RL)+y1
-        y2 = y1 + self.waypoint_lookahead_distance
+        x2 = current_x +(max(self.x_values_RL)-min(self.x_values_RL))*((action[2]+1)/2)+min(self.x_values_RL)
+        y2 = (max(self.y_values_RL)-min(self.y_values_RL))*((action[3]+1)/2)+min(self.y_values_RL)+y1
+        # y2 = y1 + self.waypoint_lookahead_distance
         # print(x2)
 
         x= [current_x ,  x1, x2]
@@ -663,7 +545,7 @@ class World(gym.Env):
             ryaw.append(sp.calc_yaw(i_s))
 
 
-        desired_speed = (max(self.v_values_RL)-min(self.v_values_RL))*((action[2]+1)/2)+min(self.v_values_RL)
+        desired_speed = (max(self.v_values_RL)-min(self.v_values_RL))*((action[4]+1)/2)+min(self.v_values_RL)
         velocity_vec = self.player.get_velocity()
         current_speed = math.sqrt(velocity_vec.x**2 + velocity_vec.y**2 + velocity_vec.z**2)
         num_steps= len(rx)
@@ -723,14 +605,14 @@ class World(gym.Env):
         normalized_data = 2 * ((clipped_data - min_values) / (max_values - min_values)) - 1
         # print(normalized_data)
 
-        acceleration_vec =  self.player.get_acceleration()
-        sideslip = np.tanh(velocity_vec.x/np.abs(velocity_vec.y))
+        # acceleration_vec =  self.player.get_acceleration()
+        # sideslip = np.tanh(velocity_vec.x/np.abs(velocity_vec.y))
 
         # print(self.player.get_telemetry_data())
 
 
-        self.save_list.append([self.episode_counter,  self.desired_speed, self.last_v, self.ttc_trigger, self.distance_parked, self.clock.get_time(), current_x, current_y, x_dist, y_dist, current_speed, current_acceleration, 
-                               acceleration_vec.x, acceleration_vec.y, sideslip, current_yaw, current_steer])
+        # self.save_list.append([self.episode_counter,  self.desired_speed, self.last_v, self.ttc_trigger, self.distance_parked, self.clock.get_time(), current_x, current_y, x_dist, y_dist, current_speed, current_acceleration, 
+        #                        acceleration_vec.x, acceleration_vec.y, sideslip, current_yaw, current_steer])
 
 
         return normalized_data

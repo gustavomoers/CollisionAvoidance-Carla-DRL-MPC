@@ -1,6 +1,6 @@
 import carla
 from Utils.utils import *
-from Utils.HUD_visuals import HUD as HUD
+from Utils.HUD import HUD as HUD
 from World import World
 import argparse
 import logging
