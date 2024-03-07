@@ -12,9 +12,11 @@ from callbacks import *
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.logger import configure
 from stable_baselines3.common.callbacks import CheckpointCallback
+from sb3_contrib import RecurrentPPO
 
 
-run = '1708371265'
+
+run = '1709461045'
 logdir = f"logs/{run}"
 
 
@@ -27,7 +29,7 @@ def game_loop(args):
         client = carla.Client(args.host, args.port)
         client.set_timeout(100.0)
         hud = HUD()
-        # carla_world = client.load_world(args.map)
+        carla_world = client.load_world(args.map)
         carla_world = client.get_world()
         carla_world.apply_settings(carla.WorldSettings(
             no_rendering_mode=False,
@@ -37,9 +39,9 @@ def game_loop(args):
         world = Monitor(world, logdir)
         world.reset()
         #continue training (Path to the last saved model)
-        model_path = f"logs/{run}/best_model.zip"
+        model_path = f"logs/{run}/rl_model_40500_steps.zip"
         log_path = f"logs/{run}/"
-        model = PPO.load(model_path, tensorboard_log=log_path, env=world, print_system_info=True)
+        model = RecurrentPPO.load(model_path, tensorboard_log=log_path, env=world, print_system_info=True)
     
 
         # Create Callback
@@ -48,13 +50,12 @@ def game_loop(args):
         # logger = HParamCallback()
         # printer = MeticLogger()
         # plotter = PlottingCallback(log_dir=logdir)
-        # checkpoint = CheckpointCallback(save_freq=500, save_path=models_dir)
+        checkpoint = CheckpointCallback(save_freq=500, save_path=logdir, verbose=1)
        
 
-        TIMESTEPS = 500000 # how long is each training iteration - individual steps
-        model.learn(total_timesteps=TIMESTEPS, tb_log_name=f"PPO1", progress_bar=True, 
-                        callback = CallbackList([tensor, save_callback]), reset_num_timesteps=False) 
-                
+        TIMESTEPS = 50000 # how long is each training iteration - individual steps
+        model.learn(total_timesteps=TIMESTEPS, reset_num_timesteps=False, tb_log_name=f"PPO", progress_bar=True, 
+                        callback = CallbackList([tensor, save_callback, checkpoint]))       
     finally:
 
             if world is not None:
@@ -162,7 +163,7 @@ def main():
     argparser.add_argument(
         '--desired_speed',
         metavar='SPEED',
-        default='25',
+        default='15',
         type=float,
         help='desired speed for highway driving')
     argparser.add_argument(
@@ -179,13 +180,13 @@ def main():
     argparser.add_argument(
         '--time_step',
         metavar='DT',
-        default='0.15',
+        default='0.2',
         type=float,
         help='Planning time step for MPC')
     argparser.add_argument(
         '--FPS',
         metavar='FPS',
-        default='20',
+        default='15',
         type=int,
         help='Frame per second for simulation')
 
