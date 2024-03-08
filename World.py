@@ -77,7 +77,7 @@ class World(gym.Env):
         self._settings = None
         self.collisions = []
         self.last_y = 0
-        self.distance_parked = 35
+        self.distance_parked = 60
         self.prev_action = np.array([0, 0, 0, 0, 0])
         self.ttc_trigger = 1
         self.episode_counter = 0
@@ -491,7 +491,7 @@ class World(gym.Env):
 
                 self.controller.update_controls()
                 self._control.throttle, self._control.steer, self._control.brake = self.controller.get_commands()
-                # print(self._control)
+                print(self._control)
 
                 self.player.apply_control(self._control)
                 self.control_count += 1
@@ -507,7 +507,7 @@ class World(gym.Env):
             spawn_location_r.y = float(z[1])
             spawn_location_r.z = 1.0
             self.world.debug.draw_string(spawn_location_r, 'O', draw_shadow=False,
-                                                color=carla.Color(r=255, g=0, b=0), life_time=0.3,
+                                                color=carla.Color(r=255, g=0, b=0), life_time=0.1,
                                                 persistent_lines=True)
 
 

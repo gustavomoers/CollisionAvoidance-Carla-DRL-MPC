@@ -7,8 +7,9 @@ import logging
 from stable_baselines3 import PPO #PPO
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.evaluation import evaluate_policy
+from sb3_contrib import RecurrentPPO
 
-run = '1708371265'
+run = '1709461045-recurrentPPO-70kmh-transfer'
 logdir = f"logs/{run}/evaluation/"
 
 if not os.path.exists(logdir):
@@ -25,7 +26,7 @@ def game_loop(args):
         client.set_timeout(100.0)
 
 
-        hud = HUD(args.width, args.height)
+        hud = HUD()
         # carla_world = client.load_world(args.map)
         carla_world = client.get_world()
         carla_world.apply_settings(carla.WorldSettings(
@@ -36,19 +37,12 @@ def game_loop(args):
         world = Monitor(world, logdir)
         world.reset()
 
-        model = PPO.load(f"F:/CollisionAvoidance-Carla-DRL-MPC/logs/{run}/best_model.zip", env=world, print_system_info=True)
+        model = RecurrentPPO.load(f"F:/CollisionAvoidance-Carla-DRL-MPC/logs/{run}/best_model.zip", env=world, print_system_info=True)
 
         mean_reward, std_reward = evaluate_policy(model, model.get_env(), n_eval_episodes=100)
 
 
-        vec_env = model.get_env()
-        obs = vec_env.reset()
-        iters = 0
-        while iters<10:  # how many testing iterations you want
-            iters += 1
-
-            action, _states = model.predict(obs, deterministic=True)
-            obs, rewards, dones, info = vec_env.step(action)
+    
            
                 
     finally:
@@ -164,7 +158,7 @@ def main():
     argparser.add_argument(
         '--desired_speed',
         metavar='SPEED', 
-        default='14',
+        default='20',
         type=float,
         help='desired speed for highway driving')
     argparser.add_argument(
@@ -181,13 +175,13 @@ def main():
     argparser.add_argument(
         '--time_step',
         metavar='DT',
-        default='0.15',
+        default='0.2',
         type=float,
         help='Planning time step for MPC')
     argparser.add_argument(
         '--FPS',
         metavar='FPS',
-        default='20',
+        default='15',
         type=int,
         help='Frame per second for simulation')
 

@@ -16,7 +16,7 @@ from sb3_contrib import RecurrentPPO
 
 
 
-run = '1709461045'
+run = '1709461045-recurrentPPO-70kmh-transfer'
 logdir = f"logs/{run}"
 
 
@@ -29,7 +29,7 @@ def game_loop(args):
         client = carla.Client(args.host, args.port)
         client.set_timeout(100.0)
         hud = HUD()
-        carla_world = client.load_world(args.map)
+        # carla_world = client.load_world(args.map)
         carla_world = client.get_world()
         carla_world.apply_settings(carla.WorldSettings(
             no_rendering_mode=False,
@@ -39,7 +39,7 @@ def game_loop(args):
         world = Monitor(world, logdir)
         world.reset()
         #continue training (Path to the last saved model)
-        model_path = f"logs/{run}/rl_model_40500_steps.zip"
+        model_path = f"logs/{run}/best_model.zip"
         log_path = f"logs/{run}/"
         model = RecurrentPPO.load(model_path, tensorboard_log=log_path, env=world, print_system_info=True)
     
@@ -54,7 +54,7 @@ def game_loop(args):
        
 
         TIMESTEPS = 50000 # how long is each training iteration - individual steps
-        model.learn(total_timesteps=TIMESTEPS, reset_num_timesteps=False, tb_log_name=f"PPO", progress_bar=True, 
+        model.learn(total_timesteps=TIMESTEPS, reset_num_timesteps=False, tb_log_name=f"PPO_70", progress_bar=True, 
                         callback = CallbackList([tensor, save_callback, checkpoint]))       
     finally:
 
@@ -163,7 +163,7 @@ def main():
     argparser.add_argument(
         '--desired_speed',
         metavar='SPEED',
-        default='15',
+        default='20',
         type=float,
         help='desired speed for highway driving')
     argparser.add_argument(
