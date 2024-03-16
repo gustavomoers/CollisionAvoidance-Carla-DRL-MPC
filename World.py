@@ -35,14 +35,12 @@ class World(gym.Env):
         self.waypoint_resolution = args.waypoint_resolution
         self.waypoint_lookahead_distance = args.waypoint_lookahead_distance
         self.desired_speed = args.desired_speed
-        # print(self.desired_speed)
         self.planning_horizon = args.planning_horizon
         self.time_step = args.time_step
         self.control_mode = args.control_mode
         self.controller = None
         self.control_count = 0.0
         self.random_spawn = 0
-        # self.restart()
         self.world.on_tick(hud.on_world_tick)
         self.recording_enabled = False
         self.im_width = 640
@@ -50,7 +48,6 @@ class World(gym.Env):
         self.episode_start = 0
         self.visuals = visuals
         self.episode_reward = 0
-        self.SHOW_CAM = True
         self.player = None
         self.parked_vehicle = None
         self.collision_sensor = None
@@ -73,18 +70,16 @@ class World(gym.Env):
         self.counter = 0
         self.frame = None
         self.delta_seconds = 1.0 / args.FPS
-        self._queues = []
-        self._settings = None
-        self.collisions = []
         self.last_y = 0
-        self.distance_parked = 60
+        self.distance_parked = 35
         self.prev_action = np.array([0, 0, 0, 0, 0])
         self.ttc_trigger = 1
         self.episode_counter = 0
         self.last_v = 0
         self.save_list = []
-        self.file_name = 'F:/CollisionAvoidance-Carla-DRL-MPC/logs/1708371265/evaluation/80m_21.9ms_1.1ttc/logger.csv'
-        self.logger = False
+        self.file_name = 'F:/CollisionAvoidance-Carla-DRL-MPC/logs/1709461045-recurrentPPO-90kmh-transfer/evaluation/logger90.csv'
+        self.logger = True
+        self.path = []
 
         ## RL STABLE BASELINES
         self.action_space = spaces.Box(low=-1, high=1,shape=(5,),dtype="float32")
@@ -106,6 +101,11 @@ class World(gym.Env):
 
     def reset(self, seed=None):
 
+        self.print_path(self.path)
+        time.sleep(2)
+        self.path = []
+
+
         self.destroy()
         self.world.apply_settings(carla.WorldSettings(
             no_rendering_mode=False,
@@ -125,92 +125,9 @@ class World(gym.Env):
             cam_index = self.camera_manager.index if self.camera_manager is not None else 0
             cam_pos_index = self.camera_manager.transform_index if self.camera_manager is not None else 0
 
-
-        self.blueprint_library = self.world.get_blueprint_library()
-        self.vehicle_blueprint = self.blueprint_library.filter('*vehicle*')
-        self.walker_blueprint = self.blueprint_library.filter('*walker.*')
-  
-        spawn_location = carla.Location()
-        spawn_location.x = float(self.args.spawn_x)
-        spawn_location.y = float(self.args.spawn_y)
-        self.spawn_waypoint = self.map.get_waypoint(spawn_location)
-        spawn_transform = self.spawn_waypoint.transform
-        spawn_transform.location.z = 1.0
-        self.player = self.world.try_spawn_actor(self.vehicle_blueprint.filter('model3')[0], spawn_transform)
-
-        self.world.tick()
-            
-        print('vehicle spawned')
-
-  
-
-        # ## CAMERA RGB
-
-        self.rgb_cam = self.blueprint_library.find('sensor.camera.rgb')
-        self.rgb_cam.set_attribute("image_size_x", f"{640}")
-        self.rgb_cam.set_attribute("image_size_y", f"{480}")
-        self.rgb_cam.set_attribute("fov", f"110")
-        self.camera_rgb = self.world.spawn_actor(
-            self.rgb_cam,
-            carla.Transform(carla.Location(x=2, z=1), carla.Rotation(0,0,0)),
-            attach_to=self.player)
-        self.world.tick()
-
-
-        ## LANE VIZUALIZATION
-
-        self.lane_invasion = self.world.spawn_actor(
-            self.blueprint_library.find('sensor.other.lane_invasion'), 
-            carla.Transform(), 
-            attach_to=self.player)
-
-
-        self.world.tick()
-        ## COLLISION SENSOR
-
-        self.collision_sensor = self.world.spawn_actor(
-            self.blueprint_library.find('sensor.other.collision'),
-            carla.Transform(),
-            attach_to=self.player)
         
+        self.create_actors()
   
-        self.world.tick()
-
-        self.synch_mode = CarlaSyncMode(self.world, self.camera_rgb, self.lane_invasion, self.collision_sensor)
-
-    
-        # creating parked vehicles
-
-        parking_position = carla.Transform(self.player.get_transform().location + carla.Location(-0.5, self.distance_parked, 0.5), 
-                             carla.Rotation(0,90,0))
-        self.parked_vehicle = self.world.spawn_actor(self.vehicle_blueprint.filter('model3')[0], parking_position)
-        
-        self.world.tick()
-
-
-        spectator = self.world.get_spectator()
-        if self.parked_vehicle is not None:
-            transform = self.parked_vehicle.get_transform()
-        else:
-            transform = self.player.get_transform()
-        spectator.set_transform(carla.Transform(transform.location + carla.Location(y=-10,z=28.5), carla.Rotation(pitch=-90)))
-
-        self.world.tick()
-
-        # # ## CONTROLLER
-
-        self.control_count = 0
-        if self.control_mode == "PID":
-            self.controller = PIDController.Controller()
-            # print("Control: PID")
-        elif self.control_mode == "MPC":
-            physic_control = self.player.get_physics_control()
-            physic_control.use_sweep_wheel_collision = True
-
-
-            lf, lr, l = get_vehicle_wheelbases(physic_control.wheels, physic_control.center_of_mass )
-            self.controller = MPCController.Controller(lf = lf, lr = lr, wheelbase=l, planning_horizon = self.planning_horizon, time_step = self.time_step)
-
         velocity_vec = self.player.get_velocity()
         current_transform = self.player.get_transform()
         current_location = current_transform.location
@@ -591,6 +508,8 @@ class World(gym.Env):
         x_dist = current_x -parked_x
         y_dist = current_y -parked_y
 
+        self.path.append([current_x, current_y])
+
         obs = [x_dist, y_dist, current_speed, current_acceleration, current_yaw]
         # print(obs)
 
@@ -605,14 +524,14 @@ class World(gym.Env):
         normalized_data = 2 * ((clipped_data - min_values) / (max_values - min_values)) - 1
         # print(normalized_data)
 
-        # acceleration_vec =  self.player.get_acceleration()
-        # sideslip = np.tanh(velocity_vec.x/np.abs(velocity_vec.y))
+        acceleration_vec =  self.player.get_acceleration()
+        sideslip = np.tanh(velocity_vec.x/np.abs(velocity_vec.y))
 
         # print(self.player.get_telemetry_data())
 
 
-        # self.save_list.append([self.episode_counter,  self.desired_speed, self.last_v, self.ttc_trigger, self.distance_parked, self.clock.get_time(), current_x, current_y, x_dist, y_dist, current_speed, current_acceleration, 
-        #                        acceleration_vec.x, acceleration_vec.y, sideslip, current_yaw, current_steer])
+        self.save_list.append([self.episode_counter,  self.desired_speed, self.last_v, self.ttc_trigger, self.distance_parked, self.clock.get_time(), current_x, current_y, x_dist, y_dist, current_speed, current_acceleration, 
+                               acceleration_vec.x, acceleration_vec.y, sideslip, current_yaw, current_steer])
 
 
         return normalized_data
@@ -642,3 +561,111 @@ class World(gym.Env):
         ttc = dist/rel_speed
 
         return np.abs(ttc)
+
+
+
+    def create_actors(self):
+
+        self.blueprint_library = self.world.get_blueprint_library()
+        self.vehicle_blueprint = self.blueprint_library.filter('*vehicle*')
+        self.walker_blueprint = self.blueprint_library.filter('*walker.*')
+
+        # PLAYER
+    
+        spawn_location = carla.Location()
+        spawn_location.x = float(self.args.spawn_x)
+        spawn_location.y = float(self.args.spawn_y)+65
+        self.spawn_waypoint = self.map.get_waypoint(spawn_location)
+        spawn_transform = self.spawn_waypoint.transform
+        spawn_transform.location.z = 1.0
+        self.player = self.world.try_spawn_actor(self.vehicle_blueprint.filter('model3')[0], spawn_transform)
+        self.world.tick()   
+        print('vehicle spawned')
+
+        physic_control = self.player.get_physics_control()
+        physic_control.use_sweep_wheel_collision = True
+
+        # Turn on position lights
+        current_lights = carla.VehicleLightState.NONE
+        current_lights |= carla.VehicleLightState.Position
+        self.player.set_light_state(carla.VehicleLightState.Position)
+
+        # CAMERA RGB
+
+        self.rgb_cam = self.blueprint_library.find('sensor.camera.rgb')
+        self.rgb_cam.set_attribute("image_size_x", f"{640}")
+        self.rgb_cam.set_attribute("image_size_y", f"{480}")
+        self.rgb_cam.set_attribute("fov", f"110")
+        self.camera_rgb = self.world.spawn_actor(
+            self.rgb_cam,
+            carla.Transform(carla.Location(x=2, z=1), carla.Rotation(0,0,0)),
+            attach_to=self.player)
+        self.world.tick()
+
+        # LANE SENSOR
+
+        self.lane_invasion = self.world.spawn_actor(
+            self.blueprint_library.find('sensor.other.lane_invasion'), 
+            carla.Transform(), 
+            attach_to=self.player)
+        self.world.tick()
+
+        # COLLISION SENSOR
+
+        self.collision_sensor = self.world.spawn_actor(
+            self.blueprint_library.find('sensor.other.collision'),
+            carla.Transform(),
+            attach_to=self.player)
+        self.world.tick()
+        
+        # SYNCH MODE CONTEXT
+
+        self.synch_mode = CarlaSyncMode(self.world, self.camera_rgb, self.lane_invasion, self.collision_sensor)
+
+        # STATIONARY CAR
+
+        parking_position = carla.Transform(self.player.get_transform().location + carla.Location(-0.5, self.distance_parked, 0.5), 
+                                carla.Rotation(0,90,0))
+        self.parked_vehicle = self.world.spawn_actor(self.vehicle_blueprint.filter('model3')[0], parking_position) #self.vehicle_blueprint.filter('model3')[0]
+        self.world.tick()
+
+        box = self.parked_vehicle.bounding_box
+        print(box.location)         # Location relative to the vehicle.
+        print(box.extent) 
+
+        # SPECTATOR
+
+        spectator = self.world.get_spectator()
+        if self.parked_vehicle is not None:
+            transform = self.parked_vehicle.get_transform()
+        else:
+            transform = self.player.get_transform()
+        spectator.set_transform(carla.Transform(transform.location + carla.Location(y=-10,z=28.5), carla.Rotation(pitch=-90)))
+        self.world.tick()
+
+        # CONTROLLER
+
+        
+        self.control_count = 0
+        if self.control_mode == "PID":
+            self.controller = PIDController.Controller()
+            # print("Control: PID")
+        elif self.control_mode == "MPC":
+            physic_control = self.player.get_physics_control()
+            physic_control.use_sweep_wheel_collision = True
+
+
+            lf, lr, l = get_vehicle_wheelbases(physic_control.wheels, physic_control.center_of_mass )
+            self.controller = MPCController.Controller(lf = lf, lr = lr, wheelbase=l, planning_horizon = self.planning_horizon, time_step = self.time_step)
+
+
+    def print_path(self, waypoints):
+
+        for z in waypoints:
+            spawn_location_r = carla.Location()
+            spawn_location_r.x = float(z[0])
+            spawn_location_r.y = float(z[1])
+            spawn_location_r.z = 1.0
+            self.world.debug.draw_string(spawn_location_r, 'O', draw_shadow=False,
+                                                color=carla.Color(r=0, g=0, b=255), life_time=5,
+                                                persistent_lines=True)

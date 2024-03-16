@@ -1,7 +1,6 @@
 import carla
 import Controller.MPCController as MPCController
 from Utils.HUD import HUD as HUD
-from  Vehicle_Control import VehicleControl
 from World import World
 from stable_baselines3.common.env_checker import check_env
 
@@ -97,7 +96,7 @@ argparser.add_argument(
 argparser.add_argument(
     '--desired_speed',
     metavar='SPEED',
-    default='25',
+    default='15',
     type=float,
     help='desired speed for highway driving')
 argparser.add_argument(
@@ -114,7 +113,7 @@ argparser.add_argument(
 argparser.add_argument(
     '--time_step',
     metavar='DT',
-    default='0.15',
+    default='0.2',
     type=float,
     help='Planning time step for MPC')
 argparser.add_argument(
@@ -140,7 +139,23 @@ try:
             fixed_delta_seconds=1/30))
     hud = HUD()
     world = World(client, carla_world, hud, args)
-    check_env(world)
+    # check_env(world)
+    world.reset()
+    phy = world.parked_vehicle.get_physics_control()
+    wheels = phy.wheels
+    front_left_wheel = wheels[0]
+    front_right_wheel = wheels[1]
+    back_left_wheel = wheels[2]
+    back_right_wheel = wheels[3]
+    print(f'front left x: {front_left_wheel.x}')
+    print(f'front right x: {front_right_wheel.x}')
+    print(f'front left y: {front_left_wheel.y}')
+    print(f'front right y: {front_right_wheel.y}')
+
+    print(f'back left x: {back_left_wheel.x}')
+    print(f'back right x: {back_right_wheel.x}')
+    print(f'back left y: {back_left_wheel.y}')
+    print(f'back right y: {back_right_wheel.y}')
     # world.reset()
 
     # world.destroy()
