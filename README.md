@@ -16,10 +16,12 @@ The action space consists of five continuous values (x1, y1, x2, y2, desired spe
 ## Results
 The model demonstrates effective navigation and collision avoidance:
 - **Generated Path Visualization:** GIF showing the model's path planning in real-time with red markings to denote the RL-generated path at each timestep.
+
   ![Model Path Visualization](https://github.com/gustavomoers/CollisionAvoidance-Carla-DRL-MPC/assets/69984472/b0fe0cac-d43e-4742-9cc0-f1b667ffff0d)
 
 
 - **Performance Metrics:** Graph depicting the reward received per timestep during training, indicating model performance and learning progress.
+
 ![Reward vs. Timestep Graph](https://github.com/gustavomoers/CollisionAvoidance-Carla-DRL-MPC/assets/69984472/82b01e0b-80b6-422a-a86d-16896246b7a9)
 
 ## Dependencies
