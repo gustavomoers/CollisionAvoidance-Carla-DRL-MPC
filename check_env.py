@@ -1,7 +1,6 @@
 import carla
 import Controller.MPCController as MPCController
 from Utils.HUD import HUD as HUD
-from  Vehicle_Control import VehicleControl
 from World import World
 from stable_baselines3.common.env_checker import check_env
 
@@ -85,19 +84,19 @@ argparser.add_argument(
 argparser.add_argument(
     '--waypoint_resolution',
     metavar='WR',
-    default='3',
+    default='1',
     type=float,
     help='waypoint resulution for control')
 argparser.add_argument(
     '--waypoint_lookahead_distance',
     metavar='WLD',
-    default='6',
+    default='5',
     type=float,
     help='waypoint look ahead distance for control')
 argparser.add_argument(
     '--desired_speed',
     metavar='SPEED',
-    default='10',
+    default='15',
     type=float,
     help='desired speed for highway driving')
 argparser.add_argument(
@@ -109,18 +108,18 @@ argparser.add_argument(
     '--planning_horizon',
     metavar='HORIZON',
     type=int,
-    default='3',
+    default='5',
     help='Planning horizon for MPC')
 argparser.add_argument(
     '--time_step',
     metavar='DT',
-    default='0.4',
+    default='0.2',
     type=float,
     help='Planning time step for MPC')
 argparser.add_argument(
     '--FPS',
     metavar='FPS',
-    default='10',
+    default='30',
     type=int,
     help='Frame per second for simulation')
 
@@ -132,17 +131,34 @@ args.width, args.height = [int(x) for x in args.res.split('x')]
 try:
     client = carla.Client('127.0.0.1', 2000)
     client.set_timeout(100.0)
-    carla_world = client.load_world(args.map)
+    # carla_world = client.load_world(args.map)
     carla_world = client.get_world()
     carla_world.apply_settings(carla.WorldSettings(
             no_rendering_mode=False,
             synchronous_mode=True,
-            fixed_delta_seconds=1/20))
+            fixed_delta_seconds=1/30))
     hud = HUD()
     world = World(client, carla_world, hud, args)
+    # check_env(world)
     world.reset()
+    phy = world.parked_vehicle.get_physics_control()
+    wheels = phy.wheels
+    front_left_wheel = wheels[0]
+    front_right_wheel = wheels[1]
+    back_left_wheel = wheels[2]
+    back_right_wheel = wheels[3]
+    print(f'front left x: {front_left_wheel.x}')
+    print(f'front right x: {front_right_wheel.x}')
+    print(f'front left y: {front_left_wheel.y}')
+    print(f'front right y: {front_right_wheel.y}')
 
-    world.destroy()
+    print(f'back left x: {back_left_wheel.x}')
+    print(f'back right x: {back_right_wheel.x}')
+    print(f'back left y: {back_left_wheel.y}')
+    print(f'back right y: {back_right_wheel.y}')
+    # world.reset()
+
+    # world.destroy()
 
 
 

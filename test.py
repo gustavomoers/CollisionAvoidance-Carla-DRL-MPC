@@ -1,15 +1,16 @@
 import carla
 from Utils.utils import *
-from Utils.HUD_visuals import HUD as HUD
+from Utils.HUD import HUD as HUD
 from World import World
 import argparse
 import logging
 from stable_baselines3 import PPO #PPO
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.evaluation import evaluate_policy
+from sb3_contrib import RecurrentPPO
 
-run = '1706146108'
-logdir = f"logs/{run}/evaluation"
+run = '1709461045-recurrentPPO-90kmh-transfer'
+logdir = f"logs/{run}/evaluation/"
 
 if not os.path.exists(logdir):
 	os.makedirs(logdir)
@@ -25,30 +26,23 @@ def game_loop(args):
         client.set_timeout(100.0)
 
 
-        hud = HUD(args.width, args.height)
-        carla_world = client.load_world(args.map)
+        hud = HUD()
+        # carla_world = client.load_world(args.map)
         carla_world = client.get_world()
         carla_world.apply_settings(carla.WorldSettings(
             no_rendering_mode=False,
             synchronous_mode=True,
-            fixed_delta_seconds=1/20))
+            fixed_delta_seconds=1/args.FPS))
         world = World(client, carla_world, hud, args, visuals=False)
         world = Monitor(world, logdir)
         world.reset()
 
-        model = PPO.load(f"F:/CollisionAvoidance-Carla-DRL-MPC/logs/{run}/best_model.zip", env=world, print_system_info=True)
+        model = RecurrentPPO.load(f"F:/CollisionAvoidance-Carla-DRL-MPC/logs/{run}/best_model.zip", env=world, print_system_info=True)
 
         mean_reward, std_reward = evaluate_policy(model, model.get_env(), n_eval_episodes=100)
 
 
-        vec_env = model.get_env()
-        obs = vec_env.reset()
-        iters = 0
-        while iters<10:  # how many testing iterations you want
-            iters += 1
-
-            action, _states = model.predict(obs, deterministic=True)
-            obs, rewards, dones, info = vec_env.step(action)
+    
            
                 
     finally:
@@ -152,7 +146,7 @@ def main():
     argparser.add_argument(
         '--waypoint_resolution',
         metavar='WR',
-        default='0.5',
+        default='1',
         type=float,
         help='waypoint resulution for control')
     argparser.add_argument(
@@ -163,8 +157,8 @@ def main():
         help='waypoint look ahead distance for control')
     argparser.add_argument(
         '--desired_speed',
-        metavar='SPEED',
-        default='13.89',
+        metavar='SPEED', 
+        default='30',
         type=float,
         help='desired speed for highway driving')
     argparser.add_argument(
@@ -176,18 +170,18 @@ def main():
         '--planning_horizon',
         metavar='HORIZON',
         type=int,
-        default='3',
+        default='5',
         help='Planning horizon for MPC')
     argparser.add_argument(
         '--time_step',
         metavar='DT',
-        default='0.4',
+        default='0.2',
         type=float,
         help='Planning time step for MPC')
     argparser.add_argument(
         '--FPS',
         metavar='FPS',
-        default='20',
+        default='15',
         type=int,
         help='Frame per second for simulation')
 
