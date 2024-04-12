@@ -10,5 +10,7 @@ Controller/__pycache__/
 Utils/__pycache__/
 .venv/
 plotting/
+*.ipynb
+
 
 
