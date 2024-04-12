@@ -4,7 +4,6 @@ from Utils.HUD import HUD as HUD
 from World import World
 import argparse
 import logging
-from stable_baselines3 import PPO #PPO
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.evaluation import evaluate_policy
 from sb3_contrib import RecurrentPPO
@@ -158,7 +157,7 @@ def main():
     argparser.add_argument(
         '--desired_speed',
         metavar='SPEED', 
-        default='30',
+        default='15',
         type=float,
         help='desired speed for highway driving')
     argparser.add_argument(

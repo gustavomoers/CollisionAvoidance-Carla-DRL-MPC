@@ -77,7 +77,7 @@ class World(gym.Env):
         self.episode_counter = 0
         self.last_v = 0
         self.save_list = []
-        self.file_name = 'F:/CollisionAvoidance-Carla-DRL-MPC/logs/1709461045-recurrentPPO-90kmh-transfer/evaluation/logger90.csv'
+        self.file_name = 'F:/CollisionAvoidance-Carla-DRL-MPC/logs/1709461045-recurrentPPO-90kmh-transfer/evaluation/logger_test_10hp.csv'
         self.logger = True
         self.path = []
 
@@ -408,7 +408,7 @@ class World(gym.Env):
 
                 self.controller.update_controls()
                 self._control.throttle, self._control.steer, self._control.brake = self.controller.get_commands()
-                print(self._control)
+                # print(self._control)
 
                 self.player.apply_control(self._control)
                 self.control_count += 1
@@ -574,7 +574,7 @@ class World(gym.Env):
     
         spawn_location = carla.Location()
         spawn_location.x = float(self.args.spawn_x)
-        spawn_location.y = float(self.args.spawn_y)+65
+        spawn_location.y = float(self.args.spawn_y)
         self.spawn_waypoint = self.map.get_waypoint(spawn_location)
         spawn_transform = self.spawn_waypoint.transform
         spawn_transform.location.z = 1.0
@@ -629,9 +629,6 @@ class World(gym.Env):
         self.parked_vehicle = self.world.spawn_actor(self.vehicle_blueprint.filter('model3')[0], parking_position) #self.vehicle_blueprint.filter('model3')[0]
         self.world.tick()
 
-        box = self.parked_vehicle.bounding_box
-        print(box.location)         # Location relative to the vehicle.
-        print(box.extent) 
 
         # SPECTATOR
 

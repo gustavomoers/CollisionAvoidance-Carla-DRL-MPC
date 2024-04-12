@@ -5,12 +5,10 @@ from Utils.HUD import HUD as HUD
 from World import World
 import argparse
 import logging
-from stable_baselines3 import PPO #PPO
 import os
 from stable_baselines3.common.callbacks import CallbackList
 from callbacks import *
 from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.logger import configure
 from stable_baselines3.common.callbacks import CheckpointCallback
 from sb3_contrib import RecurrentPPO
 
@@ -21,7 +19,6 @@ if not os.path.exists(logdir):
 	os.makedirs(logdir)
 
 
-# new_logger = configure(logdir, ["stdout", "csv", "tensorboard"])
 
 def game_loop(args): 
     world=None   
@@ -30,7 +27,7 @@ def game_loop(args):
         client = carla.Client(args.host, args.port)
         client.set_timeout(100.0)
         hud = HUD()
-        # carla_world = client.load_world(args.map)
+        carla_world = client.load_world(args.map)
         carla_world = client.get_world()
         carla_world.apply_settings(carla.WorldSettings(
             no_rendering_mode=False,
@@ -39,16 +36,11 @@ def game_loop(args):
         world = World(client, carla_world, hud, args)
         world = Monitor(world, logdir)
         world.reset()
-        # model = PPO('MlpPolicy', world, verbose=2, learning_rate=0.0003, n_steps=640, n_epochs=30, batch_size=32, ent_coef=0.01,
-        #              tensorboard_log=logdir) # tensorboard_log=logdir
         model = RecurrentPPO('MlpLstmPolicy', world, verbose=2, learning_rate=0.0003, n_steps=1280, n_epochs=20, batch_size=128, ent_coef=0.01,
                      tensorboard_log=logdir) # tensorboard_log=logdir
         # Create Callback
         save_callback = SaveOnBestTrainingRewardCallback(check_freq=500, log_dir=logdir, verbose=1) 
         tensor = TensorboardCallback()  
-        # logger = HParamCallback()
-        # printer = MeticLogger()
-        # plotter = PlottingCallback(log_dir=logdir)
         checkpoint = CheckpointCallback(save_freq=500, save_path=logdir, verbose=1)
        
 
@@ -163,7 +155,7 @@ def main():
     argparser.add_argument(
         '--desired_speed',
         metavar='SPEED',
-        default='20',
+        default='15',
         type=float,
         help='desired speed for highway driving')
     argparser.add_argument(

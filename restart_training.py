@@ -1,16 +1,12 @@
 import carla
-import time
 from Utils.utils import *
 from Utils.HUD import HUD as HUD
 from World import World
 import argparse
 import logging
-from stable_baselines3 import PPO #PPO
-import os
 from stable_baselines3.common.callbacks import CallbackList
 from callbacks import *
 from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.logger import configure
 from stable_baselines3.common.callbacks import CheckpointCallback
 from sb3_contrib import RecurrentPPO
 
