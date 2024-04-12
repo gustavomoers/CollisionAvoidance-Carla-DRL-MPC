@@ -163,7 +163,7 @@ def main():
     argparser.add_argument(
         '--desired_speed',
         metavar='SPEED',
-        default='20',
+        default='30',
         type=float,
         help='desired speed for highway driving')
     argparser.add_argument(

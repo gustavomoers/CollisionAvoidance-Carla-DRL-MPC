@@ -48,22 +48,24 @@ class CarlaSyncMode(object):
         try:
             
             self.frame = self.world.tick()
-            data = [self._retrieve_data(q, timeout) for q in self._queues[:-2]]
+            data = [self._retrieve_data(q, timeout) for q in self._queues[:-3]]
             # collision sensor is the last element in the queue
-            lane = self._detect_lane(self._queues[-2])
-            collision = self._detect_collision(self._queues[-1])
+            lane = self._detect_lane(self._queues[-3])
+            collision = self._detect_collision(self._queues[-2])
+            obstacle = self._detect_obstacle(self._queues[-1])
 
             
             data.append(lane)
             data.append(collision)
+            data.append(obstacle)
             
             assert all(x.frame == self.frame for x in data if x is not None)
-            # print(data)
+            print(data)
 
             return data
         except queue.Empty:
             print("empty queue")
-            return None, None, None, None
+            return None, None, None, None, None
 
 
 
@@ -78,6 +80,7 @@ class CarlaSyncMode(object):
         # This collision is not fully aligned with other sensors, fix later
         try:
             data = sensor.get(block=False)
+            print(data)
             return data
         except queue.Empty:
             return None
@@ -91,6 +94,15 @@ class CarlaSyncMode(object):
 
             # lane = 1 if text[0] == "'Solid'" else None
   
+            return data
+            
+        except queue.Empty:
+            return None
+        
+    
+    def _detect_obstacle(self, sensor):
+        try:
+            data = sensor.get(block=False)
             return data
             
         except queue.Empty:

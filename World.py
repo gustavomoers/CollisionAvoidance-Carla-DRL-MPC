@@ -49,13 +49,16 @@ class World(gym.Env):
         self.visuals = visuals
         self.episode_reward = 0
         self.player = None
+        self.walker = None
         self.parked_vehicle = None
+        self.obstacle_sensor = None
         self.collision_sensor = None
         self.camera_rgb = None
         self.camera_rgb_vis = None
         self.lane_invasion = None
         self.collision_sensor_hud = None
         self.lane_invasion_sensor = None
+        self.collision_sensor_walker = None
         self.gnss_sensor = None
         self.camera_manager = None
         self._autopilot_enabled = False
@@ -65,25 +68,50 @@ class World(gym.Env):
         self.y_values_RL =np.array([5, 10])
         self.x_values_RL = np.array([-3.5, 3.5])
         self.v_values_RL = np.array([0, 40])
-        self.min_values_obs = np.array([-6, -15, 0, -1.5, -3.14])
-        self.max_values_obs = np.array([6, 15, 40, 2, 3.14])
+        self.min_values_obs = np.array([-6, -15, 0, -1.5, -3.14, 1.7, 0, -1])
+        self.max_values_obs = np.array([6, 15, 40, 2, 3.14, 3, 1, 2])
         self.counter = 0
         self.frame = None
         self.delta_seconds = 1.0 / args.FPS
         self.last_y = 0
-        self.distance_parked = 35
+        self.distance_parked = 100
         self.prev_action = np.array([0, 0, 0, 0, 0])
         self.ttc_trigger = 1
         self.episode_counter = 0
         self.last_v = 0
         self.save_list = []
-        self.file_name = 'F:/CollisionAvoidance-Carla-DRL-MPC/logs/1709461045-recurrentPPO-90kmh-transfer/evaluation/logger90.csv'
-        self.logger = True
+        # self.file_name = 'F:/CollisionAvoidance-Carla-DRL-MPC/logs/1709461045-recurrentPPO-90kmh-transfer/evaluation/logger90.csv'
+        self.logger = False
         self.path = []
+        self.walker_direction_x = 0
+        self.walker_direction_y = 0
+        self.walker_speed = 0
+
+
+        self.walker_directions = [carla.WalkerControl(carla.Vector3D(1, 0, 0.0), speed=1.2),
+                            carla.WalkerControl(carla.Vector3D(1, 0.25, 0.0), speed=1.3),
+                            carla.WalkerControl(carla.Vector3D(1, 0.5, 0.0), speed=1.5),
+                            carla.WalkerControl(carla.Vector3D(1, 0.75, 0.0), speed=1.3),
+                            carla.WalkerControl(carla.Vector3D(1, 1, 0.0), speed=1.25),
+                            carla.WalkerControl(carla.Vector3D(1, 1.5, 0.0), speed=1.3),
+                            carla.WalkerControl(carla.Vector3D(1, 1.8, 0.0), speed=1.4),
+                            carla.WalkerControl(carla.Vector3D(1, -1, 0.0), speed=1.3),
+                            carla.WalkerControl(carla.Vector3D(1, -0.5, 0.0), speed=1.3),
+                            carla.WalkerControl(carla.Vector3D(0.5, 0, 0.0), speed=2.4),
+                            carla.WalkerControl(carla.Vector3D(0.5, 0.5, 0.0), speed=2.3),
+                            carla.WalkerControl(carla.Vector3D(0.5, 1.0, 0.0), speed=2.1),
+                            carla.WalkerControl(carla.Vector3D(0.5, 1.5, 0.0), speed=2),
+                            carla.WalkerControl(carla.Vector3D(0.5, 2, 0.0), speed=2),
+                            carla.WalkerControl(carla.Vector3D(0.5, -0.5, 0.0), speed=2.8),
+                            carla.WalkerControl(carla.Vector3D(0.8, 0, 0.0), speed=2.2),
+                            carla.WalkerControl(carla.Vector3D(0.8, 1.0, 0.0), speed=2.0),
+                            carla.WalkerControl(carla.Vector3D(0.8, 1.5, 0.0), speed=1.7),
+                            carla.WalkerControl(carla.Vector3D(0.8, -0.8, 0.0), speed=1.7),
+                            carla.WalkerControl(carla.Vector3D(0.8, 1.3, 0.0), speed=1.6)]
 
         ## RL STABLE BASELINES
         self.action_space = spaces.Box(low=-1, high=1,shape=(5,),dtype="float32")
-        self.observation_space = spaces.Box(low=-1, high=1, shape=(10,), dtype="float64")
+        self.observation_space = spaces.Box(low=-1, high=1, shape=(8,), dtype="float64")
 
 
         self.visuals = visuals
@@ -101,8 +129,8 @@ class World(gym.Env):
 
     def reset(self, seed=None):
 
-        self.print_path(self.path)
-        time.sleep(2)
+        # self.print_path(self.path)
+        # # time.sleep(2)
         self.path = []
 
 
@@ -166,10 +194,10 @@ class World(gym.Env):
             # print(f'ttc: {ttc}')
 
 
-            snapshot, image_rgb, lane, collision = self.synch_mode.tick(timeout=10.0)
+            snapshot, image_rgb, lane, collision, obstacle = self.synch_mode.tick(timeout=10.0)
 
             obs = self.get_observation()
-            obs = np.array(np.append(obs, self.prev_action))
+            # obs = np.array(np.append(obs, self.prev_action))
   
             # img = process_img2(self, image_rgb)
 
@@ -178,6 +206,20 @@ class World(gym.Env):
         self.last_y = last_location.y
         self.last_v = current_speed
         print(current_speed)
+
+        self.walker_direction_x = np.random.uniform(0,1)
+        self.walker_direction_y = np.random.uniform(0,2)
+        self.walker_speed = np.random.uniform(2.2, 3)
+
+        dir = carla.WalkerControl(carla.Vector3D(self.walker_direction_x, self.walker_direction_y,
+                                                  0.0), speed=self.walker_speed)
+
+        # dir = random.choice(self.walker_directions)
+        self.walker.apply_control(dir)
+
+
+        obs = self.get_observation()
+        # obs = np.array(np.append(obs, self.prev_action))
 
 
         return obs, {}
@@ -196,7 +238,10 @@ class World(gym.Env):
             self.collision_sensor,
             self.camera_rgb,
             self.lane_invasion,
-            self.parked_vehicle]
+            self.parked_vehicle,
+            self.walker,
+            self.collision_sensor_walker,
+            self.obstacle_sensor]
 
         if self.collision_sensor_hud is not None:
             actors.append(self.collision_sensor_hud.sensor)
@@ -239,17 +284,17 @@ class World(gym.Env):
             
             
             
-            snapshot, image_rgb, lane, collision = self.synch_mode.tick(timeout=10.0)
+            snapshot, image_rgb, lane, collision, obstacle = self.synch_mode.tick(timeout=10.0)
             
             
             obs = self.get_observation()
 
-            obs = np.array(np.append(obs, self.prev_action))
+            # obs = np.array(np.append(obs, self.prev_action))
             self.prev_action = []
             self.prev_action.append(action)
 
 
-            cos_yaw_diff, dist, collision, lane, stat, traveled = self.get_reward_comp(self.player, self.spawn_waypoint, collision, lane, self.controller.stat)
+            cos_yaw_diff, dist, collision, lane, stat, traveled = self.get_reward_comp(self.player, self.spawn_waypoint, collision, lane, self.controller.stat, obstacle)
             
             
             self.reward = self.reward_value(cos_yaw_diff, dist, collision, lane, stat, traveled)
@@ -296,7 +341,7 @@ class World(gym.Env):
     
 
 
-    def get_reward_comp(self, vehicle, waypoint, collision, lane, stat):
+    def get_reward_comp(self, vehicle, waypoint, collision, lane, stat, obstacle):
         vehicle_location = vehicle.get_location()
         x_wp = waypoint.transform.location.x
         y_wp = waypoint.transform.location.y
@@ -314,6 +359,12 @@ class World(gym.Env):
         cos_yaw_diff = np.cos((vh_yaw - wp_yaw)*np.pi/180.)
 
         collision = 0 if collision is None else 1
+
+        if obstacle is not None:
+            print(obstacle.distance)
+
+        if obstacle is not None and obstacle.distance == 0:
+            collision = 1 
 
         if lane is not None:
             lane_types = set(x.type for x in lane.crossed_lane_markings)
@@ -408,7 +459,7 @@ class World(gym.Env):
 
                 self.controller.update_controls()
                 self._control.throttle, self._control.steer, self._control.brake = self.controller.get_commands()
-                print(self._control)
+                # print(self._control)
 
                 self.player.apply_control(self._control)
                 self.control_count += 1
@@ -467,8 +518,10 @@ class World(gym.Env):
         current_speed = math.sqrt(velocity_vec.x**2 + velocity_vec.y**2 + velocity_vec.z**2)
         num_steps= len(rx)
 
-        speed_profile = [current_speed + (i / num_steps) * (desired_speed - current_speed) for i in range(num_steps + 1)]
+        speed_profile = [current_speed + (i / self.planning_horizon) * (desired_speed - current_speed) for i in range(self.planning_horizon)]
 
+        for i in range(num_steps- len(speed_profile)):
+            speed_profile.append(speed_profile[-1])
 
         nw_wp = []
         for i in range(len(rx)):
@@ -485,8 +538,8 @@ class World(gym.Env):
         # min_values = [min_x_dist, min_y_dist, min_speed, min_acceleration, min_yaw]
         # max_values = [max_x_dist, max_y_dist, max_speed, max_acceleration, max_yaw]
 
-        min_values = self.min_values_obs #np.array([-6, -15, 0, -1.5, -3.14])
-        max_values = self.max_values_obs #np.array([6, 15, 40, 2, 3.14])
+        min_values = self.min_values_obs #np.array([-6, -15, 0, -1.5, -3.14, 1.3, 0, -1])
+        max_values = self.max_values_obs #np.array([6, 35, 40, 2, 3.14, 3, 1, 2])
 
          # EGO information
         velocity_vec = self.player.get_velocity()
@@ -499,22 +552,22 @@ class World(gym.Env):
         current_speed = math.sqrt(velocity_vec.x**2 + velocity_vec.y**2 + velocity_vec.z**2)
         current_acceleration = self.controller._acceleration
         current_steer = self.controller._steer
-        #Parked vehicle information
-        parked_transform = self.parked_vehicle.get_transform()
+
+        #walker information
+        parked_transform = self.walker.get_transform()
         parked_location = parked_transform.location
         parked_x = parked_location.x
         parked_y = parked_location.y
-
         x_dist = current_x -parked_x
         y_dist = current_y -parked_y
 
         self.path.append([current_x, current_y])
 
-        obs = [x_dist, y_dist, current_speed, current_acceleration, current_yaw]
+        obs = [x_dist, y_dist, current_speed, current_acceleration, current_yaw, self.walker_speed, self.walker_direction_x, self.walker_direction_y]
         # print(obs)
 
         # Example observation data
-        data = np.array([x_dist, y_dist, current_speed, current_acceleration, current_yaw])
+        data = np.array([x_dist, y_dist, current_speed, current_acceleration, current_yaw, self.walker_speed, self.walker_direction_x, self.walker_direction_y])
 
         # Clipping the data
         clipped_data = np.clip(data, min_values, max_values)
@@ -547,9 +600,9 @@ class World(gym.Env):
         current_speed = math.sqrt(velocity_vec.x**2 + velocity_vec.y**2 + velocity_vec.z**2)
        
 
-        #Parked vehicle information
-        parked_transform = self.parked_vehicle.get_transform()
-        velocity_parked = self.parked_vehicle.get_velocity()
+        #walker  information
+        parked_transform = self.walker.get_transform()
+        velocity_parked = self.walker.get_velocity()
         parked_location = parked_transform.location
         parked_x = parked_location.x
         parked_y = parked_location.y
@@ -574,13 +627,14 @@ class World(gym.Env):
     
         spawn_location = carla.Location()
         spawn_location.x = float(self.args.spawn_x)
-        spawn_location.y = float(self.args.spawn_y)+65
+        spawn_location.y = float(self.args.spawn_y)
         self.spawn_waypoint = self.map.get_waypoint(spawn_location)
         spawn_transform = self.spawn_waypoint.transform
         spawn_transform.location.z = 1.0
         self.player = self.world.try_spawn_actor(self.vehicle_blueprint.filter('model3')[0], spawn_transform)
         self.world.tick()   
         print('vehicle spawned')
+        
 
         physic_control = self.player.get_physics_control()
         physic_control.use_sweep_wheel_collision = True
@@ -617,30 +671,73 @@ class World(gym.Env):
             carla.Transform(),
             attach_to=self.player)
         self.world.tick()
+
+        # Obstacle SENSOR
+        bp = self.world.get_blueprint_library().find('sensor.other.obstacle')
+        bp.set_attribute('distance','5')
+        bp.set_attribute('hit_radius','0.5')
+        bp.set_attribute('debug_linetrace','true')
+        bp.set_attribute('only_dynamics', 'true')
+
+        self.obstacle_sensor = self.world.spawn_actor(
+            bp,
+            carla.Transform(),
+            attach_to=self.player)
+        self.world.tick()
+
+        # self.obstacle_sensor.listen(lambda event: print(event.distance))
+        
         
         # SYNCH MODE CONTEXT
 
-        self.synch_mode = CarlaSyncMode(self.world, self.camera_rgb, self.lane_invasion, self.collision_sensor)
+        self.synch_mode = CarlaSyncMode(self.world, self.camera_rgb, self.lane_invasion, self.collision_sensor, self.obstacle_sensor)
 
-        # STATIONARY CAR
+        # # STATIONARY CAR
 
-        parking_position = carla.Transform(self.player.get_transform().location + carla.Location(-0.5, self.distance_parked, 0.5), 
-                                carla.Rotation(0,90,0))
-        self.parked_vehicle = self.world.spawn_actor(self.vehicle_blueprint.filter('model3')[0], parking_position) #self.vehicle_blueprint.filter('model3')[0]
+        # parking_position = carla.Transform(self.player.get_transform().location + carla.Location(-0.5, self.distance_parked, 0.5), 
+        #                         carla.Rotation(0,90,0))
+        # self.parked_vehicle = self.world.spawn_actor(self.vehicle_blueprint.filter('model3')[0], parking_position) #self.vehicle_blueprint.filter('model3')[0]
+        # self.world.tick()
+
+        # box = self.parked_vehicle.bounding_box
+        # print(box.location)         # Location relative to the vehicle.
+        # print(box.extent) 
+
+
+        self.random_walker = random.choice(self.walker_blueprint)
+        walker_bp = self.walker_blueprint.find("walker.pedestrian.0001")
+
+        if  self.random_walker.has_attribute('is_invincible'):
+             self.random_walker.set_attribute('is_invincible', 'false')
+
+        if walker_bp.has_attribute('is_invincible'):
+            walker_bp.set_attribute('is_invincible', 'false')  
+
+        self.walker_position = carla.Transform(self.player.get_transform().location + carla.Location(-1.5,self.distance_parked,0.5), 
+                            carla.Rotation(0,90,0))
+        self.walker = self.world.spawn_actor(walker_bp, self.walker_position)
+
         self.world.tick()
 
-        box = self.parked_vehicle.bounding_box
-        print(box.location)         # Location relative to the vehicle.
-        print(box.extent) 
+        # self.collision_sensor_walker = self.world.spawn_actor(
+        #     self.blueprint_library.find('sensor.other.collision'),
+        #     carla.Transform(),
+        #     attach_to=self.walker)
+        
+        # self.collision_sensor_walker.listen(lambda event: print(event))
+        # self.world.tick()
+
 
         # SPECTATOR
 
         spectator = self.world.get_spectator()
-        if self.parked_vehicle is not None:
-            transform = self.parked_vehicle.get_transform()
-        else:
-            transform = self.player.get_transform()
-        spectator.set_transform(carla.Transform(transform.location + carla.Location(y=-10,z=28.5), carla.Rotation(pitch=-90)))
+        transform = self.player.get_transform()
+        # if self.walker is not None:
+        #     transform = self.walker.get_transform()
+        # else:
+        #     transform = self.player.get_transform()
+        spectator.set_transform(carla.Transform(transform.location + carla.Location(z=18.5,y=self.distance_parked),
+                                                 carla.Rotation(pitch=-90)))
         self.world.tick()
 
         # CONTROLLER

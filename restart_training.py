@@ -16,7 +16,7 @@ from sb3_contrib import RecurrentPPO
 
 
 
-run = '1709461045-recurrentPPO-90kmh-transfer'
+run = '1710601035'
 logdir = f"logs/{run}"
 
 
@@ -29,7 +29,7 @@ def game_loop(args):
         client = carla.Client(args.host, args.port)
         client.set_timeout(100.0)
         hud = HUD()
-        carla_world = client.load_world(args.map)
+        # carla_world = client.load_world(args.map)
         carla_world = client.get_world()
         carla_world.apply_settings(carla.WorldSettings(
             no_rendering_mode=False,
@@ -39,7 +39,7 @@ def game_loop(args):
         world = Monitor(world, logdir)
         world.reset()
         #continue training (Path to the last saved model)
-        model_path = f"logs/{run}/best_model.zip"
+        model_path = f"logs/{run}/rl_model_38500_steps.zip"
         log_path = f"logs/{run}/"
         model = RecurrentPPO.load(model_path, tensorboard_log=log_path, env=world, print_system_info=True)
     
@@ -53,8 +53,8 @@ def game_loop(args):
         checkpoint = CheckpointCallback(save_freq=500, save_path=logdir, verbose=1)
        
 
-        TIMESTEPS = 50000 # how long is each training iteration - individual steps
-        model.learn(total_timesteps=TIMESTEPS, reset_num_timesteps=False, tb_log_name=f"PPO_90", progress_bar=True, 
+        TIMESTEPS = 100000 # how long is each training iteration - individual steps
+        model.learn(total_timesteps=TIMESTEPS, reset_num_timesteps=False, tb_log_name=f"PPO", progress_bar=True, 
                         callback = CallbackList([tensor, save_callback, checkpoint]))       
     finally:
 

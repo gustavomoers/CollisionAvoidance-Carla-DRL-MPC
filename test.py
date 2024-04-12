@@ -9,7 +9,7 @@ from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.evaluation import evaluate_policy
 from sb3_contrib import RecurrentPPO
 
-run = '1709461045-recurrentPPO-90kmh-transfer'
+run = '1710601035'
 logdir = f"logs/{run}/evaluation/"
 
 if not os.path.exists(logdir):
