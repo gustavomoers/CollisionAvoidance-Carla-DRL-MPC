@@ -56,3 +56,23 @@ def get_vehicle_wheelbases(wheels, center_of_mass):
     return l - center_of_mass.x, center_of_mass.x, l
 
 
+def get_actor_display_name(actor, truncate=250):
+    name = ' '.join(actor.type_id.replace('_', '.').title().split('.')[1:])
+    return (name[:truncate - 1] + u'\u2026') if len(name) > truncate else name
+
+
+
+
+def next_weather(self, reverse=False):
+    self._weather_index += -1 if reverse else 1
+    self._weather_index %= len(self._weather_presets)
+    preset = self._weather_presets[self._weather_index]
+    self.hud.notification('Weather: %s' % preset[1])
+    self.player.get_world().set_weather(preset[0])
+
+
+def find_weather_presets():
+    rgx = re.compile('.+?(?:(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])|$)')
+    name = lambda x: ' '.join(m.group(0) for m in rgx.finditer(x))
+    presets = [x for x in dir(carla.WeatherParameters) if re.match('[A-Z].+', x)]
+    return [(getattr(carla.WeatherParameters, x), name(x)) for x in presets]

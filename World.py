@@ -12,7 +12,7 @@ from gymnasium import spaces
 import random
 from Utils.CubicSpline.cubic_spline_planner import *
 import csv
-
+from Utils.HUD_visuals import *
 
 
 class World(gym.Env):
@@ -32,6 +32,7 @@ class World(gym.Env):
         self._gamma = args.gamma
         self.args = args
         self.recording_start = 0
+        self._gamma = args.gamma
         self.waypoint_resolution = args.waypoint_resolution
         self.waypoint_lookahead_distance = args.waypoint_lookahead_distance
         self.desired_speed = args.desired_speed
@@ -78,17 +79,23 @@ class World(gym.Env):
         self.last_v = 0
         self.save_list = []
         self.file_name = 'F:/CollisionAvoidance-Carla-DRL-MPC/logs/1709461045-recurrentPPO-90kmh-transfer/evaluation/logger_test_10hp.csv'
-        self.logger = True
+        self.logger = False
         self.path = []
+
+
+        #VISUAL PYGAME
+        self._weather_presets = find_weather_presets()
+        self.visuals = visuals
+        self.collision_sensor_hud = None
+        self.lane_invasion_sensor = None
+        self.gnss_sensor = None
+        self.camera_manager = None
+
 
         ## RL STABLE BASELINES
         self.action_space = spaces.Box(low=-1, high=1,shape=(5,),dtype="float32")
         self.observation_space = spaces.Box(low=-1, high=1, shape=(10,), dtype="float64")
 
-
-        self.visuals = visuals
-        if self.visuals:
-            self._initiate_visuals()
         
         self.global_t = 0 # global timestep
 
@@ -97,6 +104,12 @@ class World(gym.Env):
         with open(file_name, 'a', newline='') as file:
             writer = csv.writer(file)
             writer.writerow(data)
+
+
+    def render(self, display):
+        self.camera_manager.render(display)
+        self.hud.render(display)
+
 
 
     def reset(self, seed=None):
@@ -113,6 +126,7 @@ class World(gym.Env):
             fixed_delta_seconds=1/self.args.FPS))
         self.episode_reward = 0
         self.desired_speed = self.args.desired_speed
+
 
         self.episode_counter += 1
 
@@ -140,6 +154,14 @@ class World(gym.Env):
         self.controller.update_values(current_x, current_y, current_yaw, current_speed, current_timestamp, frame)
         self.episode_start = time.time()
 
+        if self.visuals:
+            self.collision_sensor_hud = CollisionSensor(self.player, self.hud)
+            self.lane_invasion_sensor = LaneInvasionSensor(self.player, self.hud)
+            self.gnss_sensor = GnssSensor(self.player)
+            self.camera_manager = CameraManager(self.player, self.hud, self._gamma)
+            self.camera_manager.transform_index = cam_pos_index
+            self.camera_manager.set_sensor(cam_index, notify=False)
+
         
 
         self.world.tick()
@@ -154,6 +176,20 @@ class World(gym.Env):
             # snapshot, image_rgb, lane, collision = self.synch_mode.tick(timeout=10.0)
 
             self.clock.tick_busy_loop(self.args.FPS)
+
+            if self.visuals:  
+                self.display = pygame.display.set_mode(
+                            (self.args.width, self.args.height),
+                            pygame.HWSURFACE | pygame.DOUBLEBUF)
+                self.display.fill((0,0,0))
+
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        run = False
+
+                self.tick(self.clock)
+                self.render(self.display)
+                pygame.display.update()
 
             if self.parse_events(clock=self.clock, action=None):
                  return
@@ -253,6 +289,16 @@ class World(gym.Env):
             
             
             self.reward = self.reward_value(cos_yaw_diff, dist, collision, lane, stat, traveled)
+
+            if self.visuals:
+                self.display.fill((0,0,0))
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        run = False                
+
+                self.tick(self.clock)
+                self.render(self.display)
+                pygame.display.flip()
  
 
             self.episode_reward += self.reward

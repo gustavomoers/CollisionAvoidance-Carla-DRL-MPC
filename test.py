@@ -1,6 +1,6 @@
 import carla
 from Utils.utils import *
-from Utils.HUD import HUD as HUD
+from Utils.HUD_visuals import HUD as HUD
 from World import World
 import argparse
 import logging
@@ -8,7 +8,7 @@ from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.evaluation import evaluate_policy
 from sb3_contrib import RecurrentPPO
 
-run = '1709461045-recurrentPPO-90kmh-transfer'
+run = '1709461045-recurrentPPO-50kmh'
 logdir = f"logs/{run}/evaluation/"
 
 if not os.path.exists(logdir):
@@ -25,14 +25,14 @@ def game_loop(args):
         client.set_timeout(100.0)
 
 
-        hud = HUD()
+        hud = HUD(args.width, args.height)
         # carla_world = client.load_world(args.map)
         carla_world = client.get_world()
         carla_world.apply_settings(carla.WorldSettings(
             no_rendering_mode=False,
             synchronous_mode=True,
             fixed_delta_seconds=1/args.FPS))
-        world = World(client, carla_world, hud, args, visuals=False)
+        world = World(client, carla_world, hud, args, visuals=True)
         world = Monitor(world, logdir)
         world.reset()
 
