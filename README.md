@@ -39,4 +39,5 @@ To start the simulation and train the model:
 Contributions to enhance the system or adapt it for different scenarios are welcome. Please fork the repository, propose changes via pull requests, or raise issues for discussion.
 
 ## References
+The thesis work I wrote is attached as Thesis_Collision_Avoidance_System.pdf.
 Special thanks to [Carla-MPC](https://github.com/yangggzhang/Carla-MPC) by yangggzhang for the initial Model Predictive Control (MPC) implementation. This project uses a modified version of the Carla-MPC to integrate with our reinforcement learning model for enhanced path planning and control.
